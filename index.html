@@ -6,7 +6,7 @@
     <title>360° Performance Appraisal System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js removed (unused) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -51,13 +51,13 @@
         let currentUser = null, currentUserData = null;
         let selectedCompanyFilter = 'all';
         let selectedQuarter = new Date().getFullYear() + '-Q' + Math.floor((new Date().getMonth() / 3) + 1);
-        const quarters = ['2025-Q1', '2025-Q2', '2025-Q3', '2025-Q4', '2026-Q1'];
+        const quarters = ['2025-Q1', '2025-Q2', '2025-Q3', '2025-Q4', '2026-Q1', '2026-Q2'];
         
         const defaultQuestions = [
-            "1. Able to Work Independently", "2. Apply acquired knowledge and skills efficiently", "3. Update Promptly on Assigned Work", "4. Complete the assigned tasks on times", "5. Compliance with Company Policies and Rules strictly",
-            "6. Follow the Department's Procedures and SOP strictly", "7. Execute the Tasks from Superiors and Management", "8. Well-presented and Manner for Company image", "9. Be clear, precise and conclusive", "10. Convey the message to other Clearly",
-            "11. Adapt yourself to communicate with team members effectively", "12. Express own opinions clearly and willing to listen and accept others opinion", "13. Improve Work Quality Continuously", "14. Proactive and Motivated", "15. Strong sense of Responsibility",
-            "16. Provide Sevice in professional and frinedly manner", "17. Respect and be polite to individuals", "18. Respect the individual's Privacy and Highly protect the confidetiality of Company and Clients' Information", "19. With integrity and Honesty, not Slanderous", "20. Acted with Fairness, Trustworthy"
+            "Communication", "Teamwork", "Problem Solving", "Leadership", "Reliability",
+            "Adaptability", "Quality of Work", "Productivity", "Initiative", "Accountability",
+            "Collaboration", "Customer Focus", "Decision Making", "Planning", "Organization",
+            "Time Management", "Technical Skills", "Interpersonal Skills", "Conflict Resolution", "Professionalism"
         ];
 
         let appSettings = {
@@ -98,6 +98,8 @@
                 }
                 await loadSettings();
                 showToast("System ready!");
+            } else {
+                await loadSettings();
             }
         }
 
@@ -138,13 +140,14 @@
                             <input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required>
                             <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button>
                         </form>
-                      
+                        <div class="mt-4 text-center text-xs text-gray-400"><p>Demo: admin@company.com / password<br>sarah@nuebe.com (HR) / password</p></div>
+                    </div>
                 </div>
             `;
             document.getElementById('loginForm').addEventListener('submit', (e) => { e.preventDefault(); login(document.getElementById('email').value, document.getElementById('password').value); });
         }
 
-        // ============ USER DIRECTORY ============
+        // ============ USER DIRECTORY with CASCADE DELETE ============
         async function renderUserDirectory() {
             document.getElementById('app').innerHTML = `<div class="p-4 text-center">Loading users...</div>`;
             
@@ -216,7 +219,25 @@
             `;
         }
 
-        // ============ RESULTS REPORT - FINAL SCORES (70% + 30%) ============
+        // CASCADE DELETE (ratings + hr record)
+        window.deleteUserAccount = async (userId) => {
+            if (!confirm('Delete user permanently? This will also delete all their received/given feedback and HR records.')) return;
+            try {
+                const asReviewee = await db.collection('ratings').where('revieweeId', '==', userId).get();
+                const asRater = await db.collection('ratings').where('raterId', '==', userId).get();
+                const batch = db.batch();
+                asReviewee.forEach(doc => batch.delete(doc.ref));
+                asRater.forEach(doc => batch.delete(doc.ref));
+                const hrDoc = await db.collection('hrRecords').doc(userId).get();
+                if (hrDoc.exists) batch.delete(hrDoc.ref);
+                await db.collection('users').doc(userId).delete();
+                await batch.commit();
+                showToast('User and all associated data deleted');
+                renderUserDirectory();
+            } catch (err) { showToast(err.message, true); }
+        };
+
+        // ============ RESULTS REPORT WITH QUARTER FILTER (ALL QUARTERS FIX) ============
         window.showResultsReport = async () => {
             document.getElementById('app').innerHTML = `<div class="p-4 text-center">Loading report...</div>`;
             
@@ -224,13 +245,18 @@
             const allRatings = await db.collection('ratings').get();
             const hrRecords = await db.collection('hrRecords').get();
             
-            // Create HR records map
+            const selectedQtr = document.getElementById('reportQuarterFilter')?.value || 'all';
+            // Filter ratings by quarter if a specific quarter is selected
+            let ratingsFiltered = allRatings.docs;
+            if (selectedQtr !== 'all') {
+                ratingsFiltered = ratingsFiltered.filter(doc => doc.data().quarter === selectedQtr);
+            }
+            
             const hrMap = {};
             hrRecords.docs.forEach(doc => { hrMap[doc.id] = doc.data(); });
             
-            // Calculate average peer rating for each employee
             const peerScores = {};
-            allRatings.docs.forEach(r => {
+            ratingsFiltered.forEach(r => {
                 const data = r.data();
                 if (!peerScores[data.revieweeId]) {
                     peerScores[data.revieweeId] = { total: 0, count: 0, name: data.revieweeName };
@@ -239,7 +265,6 @@
                 peerScores[data.revieweeId].count++;
             });
             
-            // Calculate final scores for each employee
             const results = [];
             for (const userDoc of allUsers.docs) {
                 const user = userDoc.data();
@@ -275,7 +300,6 @@
                 });
             }
             
-            // Apply filters
             let filteredResults = results;
             const companyFilter = document.getElementById('reportCompanyFilter')?.value || 'all';
             const roleFilter = document.getElementById('reportRoleFilter')?.value || 'all';
@@ -285,7 +309,6 @@
             if (roleFilter !== 'all') filteredResults = filteredResults.filter(r => r.role === roleFilter);
             if (searchFilter) filteredResults = filteredResults.filter(r => r.name.toLowerCase().includes(searchFilter));
             
-            // Sort by final score
             filteredResults.sort((a, b) => parseFloat(b.finalScore) - parseFloat(a.finalScore));
             
             const getScoreClass = (score) => {
@@ -317,7 +340,6 @@
                             </div>
                         </div>
                         
-                        <!-- Filters -->
                         <div class="bg-white rounded-2xl shadow p-4 mb-6">
                             <h3 class="font-bold mb-3">🔍 Filters</h3>
                             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -331,12 +353,15 @@
                                     <option value="manager">Manager</option>
                                     <option value="hr">HR</option>
                                 </select>
+                                <!-- QUARTER FILTER WITH "ALL QUARTERS" OPTION -->
+                                <select id="reportQuarterFilter" class="border rounded p-2 text-sm" onchange="showResultsReport()">
+                                    <option value="all" ${selectedQtr === 'all' ? 'selected' : ''}>All Quarters</option>
+                                    ${quarters.map(q => `<option value="${q}" ${selectedQtr === q ? 'selected' : ''}>${q}</option>`).join('')}
+                                </select>
                                 <input type="text" id="reportSearch" placeholder="Search by name..." class="border rounded p-2 text-sm" onkeyup="showResultsReport()">
-                                <div class="text-right text-sm text-gray-500">Total: ${filteredResults.length} employees</div>
                             </div>
                         </div>
                         
-                        <!-- Summary Cards -->
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                             <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-4">
                                 <div class="text-2xl font-bold">${filteredResults.length}</div>
@@ -356,7 +381,6 @@
                             </div>
                         </div>
                         
-                        <!-- Results Table -->
                         <div class="bg-white rounded-2xl shadow overflow-hidden">
                             <div class="overflow-x-auto">
                                 <table class="w-full text-sm">
@@ -399,18 +423,24 @@
             `;
         };
         
+        // CSV EXPORT with proper escaping (fix)
         window.exportResultsToCSV = async () => {
             const allUsers = await db.collection('users').get();
             const allRatings = await db.collection('ratings').get();
             const hrRecords = await db.collection('hrRecords').get();
+            const selectedQtr = document.getElementById('reportQuarterFilter')?.value || 'all';
+            let ratingsFiltered = allRatings.docs;
+            if (selectedQtr !== 'all') {
+                ratingsFiltered = ratingsFiltered.filter(d => d.data().quarter === selectedQtr);
+            }
             
             const hrMap = {};
             hrRecords.docs.forEach(doc => { hrMap[doc.id] = doc.data(); });
             
             const peerScores = {};
-            allRatings.docs.forEach(r => {
+            ratingsFiltered.forEach(r => {
                 const data = r.data();
-                if (!peerScores[data.revieweeId]) peerScores[data.revieweeId] = { total: 0, count: 0, name: data.revieweeName };
+                if (!peerScores[data.revieweeId]) peerScores[data.revieweeId] = { total: 0, count: 0 };
                 peerScores[data.revieweeId].total += data.average;
                 peerScores[data.revieweeId].count++;
             });
@@ -419,31 +449,29 @@
             for (const userDoc of allUsers.docs) {
                 const user = userDoc.data();
                 if (user.role === 'admin') continue;
-                
                 const peerData = peerScores[userDoc.id];
                 const operationScore = peerData ? (peerData.total / peerData.count) * 20 : 0;
                 const hrData = hrMap[userDoc.id];
-                
                 let hrScore = 100;
                 if (hrData) {
                     const deduction = (hrData.late||0)*appSettings.deductions.late + (hrData.npsl||0)*appSettings.deductions.npsl + (hrData.npl||0)*appSettings.deductions.npl + (hrData.awol||0)*appSettings.deductions.awol + (hrData.warningA||0)*appSettings.deductions.warningA + (hrData.warningB||0)*appSettings.deductions.warningB + (hrData.warningC||0)*appSettings.deductions.warningC;
                     hrScore = Math.max(0, 100 - deduction);
                 }
                 const finalScore = (operationScore * appSettings.operationWeight) + (hrScore * appSettings.hrWeight);
-                
                 results.push({ name: user.name, company: user.company, role: user.role, operationScore: operationScore.toFixed(1), hrScore: hrScore, finalScore: finalScore.toFixed(1) });
             }
             
-            let csv = '"Employee","Company","Role","Peer Rating (70%)","HR Score (30%)","Final Score"\n';
+            const escapeCSV = (str) => `"${String(str).replace(/"/g, '""')}"`;
+            let csv = "\uFEFF" + ["Employee","Company","Role","Peer Rating (70%)","HR Score (30%)","Final Score"].map(escapeCSV).join(",") + "\n";
             results.forEach(r => {
-                csv += `"${r.name}","${r.company}","${r.role}",${r.operationScore},${r.hrScore},${r.finalScore}\n`;
+                csv += [r.name, r.company, r.role, r.operationScore, r.hrScore, r.finalScore].map(escapeCSV).join(",") + "\n";
             });
             
-            const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv' });
+            const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `performance_results_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `performance_results_${selectedQtr}_${new Date().toISOString().split('T')[0]}.csv`;
             a.click();
             URL.revokeObjectURL(url);
             showToast('Results exported!');
@@ -476,9 +504,8 @@
         };
         
         window.closeModal = () => { const modal = document.querySelector('.modal'); if (modal) modal.remove(); };
-        window.deleteUserAccount = async (userId) => { if (confirm('Delete user?')) { await db.collection('users').doc(userId).delete(); showToast('User deleted'); renderUserDirectory(); } };
         
-        // ============ VIEW USER DETAILS ============
+        // ============ VIEW USER DETAILS (fully preserved) ============
         window.viewUserDetails = async (userId) => {
             const userDoc = await db.collection('users').doc(userId).get();
             const user = userDoc.data();
@@ -534,7 +561,7 @@
                                                     <span class="text-sm">${q.substring(0, 35)}${q.length > 35 ? '...' : ''}</span>
                                                     <span class="font-bold ${score >= 4 ? 'text-green-600' : score >= 3 ? 'text-yellow-600' : 'text-red-600'}">${score}/5</span>
                                                 </div>
-                                            `).join('') : '<p class="text-gray-500 col-span-2">No detailed scores available. Please submit a new evaluation with ratings for all 20 questions.</p>'}
+                                            `).join('') : '<p class="text-gray-500 col-span-2">No detailed scores available.</p>'}
                                         </div>
                                     </div>
                                 </div>
@@ -603,15 +630,20 @@
             `;
         }
 
-        // ============ START EVALUATION ============
+        // ============ START EVALUATION with SELF-EVALUATION BLOCK ============
         async function startEvaluation(revieweeId, revieweeName) {
+            if (revieweeId === currentUser.uid) {
+                showToast("You cannot evaluate yourself.", true);
+                return;
+            }
+            
             let questionsHtml = '';
             appSettings.questions.forEach((q, idx) => {
                 questionsHtml += `<div class="mb-4 p-3 border rounded">
                     <div class="font-medium text-sm mb-2">${q}</div>
                     <div class="flex gap-2 flex-wrap">
                         ${[1,2,3,4,5].map(s => `<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${idx}" data-score="${s}" onclick="selectRating(${idx},${s})">${s}</button>`).join('')}
-                        <span class="text-xs text-gray-400 ml-2">1=Unacceptable 2=Needs Improvement 3=Satisfactory 4=Outstanding 5=Excellent</span>
+                        <span class="text-xs text-gray-400 ml-2">1=Poor 5=Outstanding</span>
                     </div>
                     <input type="hidden" id="q${idx}" value="">
                 </div>`;
@@ -688,18 +720,99 @@
             document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4"><div class="max-w-4xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">All Feedback</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div><div class="bg-white rounded-2xl shadow p-6">${feedbacks.length ? feedbacks.map(f => `<div class="border-b pb-3 mb-3"><span class="font-bold">${f.raterName}</span> → <span class="font-bold">${f.revieweeName}</span> <span class="float-right">⭐ ${f.average}</span><p class="italic">"${f.comments || 'No comments'}"</p></div>`).join('') : '<p class="text-center text-gray-400 py-8">No feedback yet</p>'}</div></div></div>`;
         };
 
+        // ============ HR INPUT PAGE WITH SAVE FUNCTIONALITY ============
         window.showHrInputPage = async () => {
             const allUsers = await db.collection('users').get();
             let employees = allUsers.docs.filter(d => d.data().role === 'employee');
             if (selectedCompanyFilter !== 'all') employees = employees.filter(e => e.data().company === selectedCompanyFilter);
+            
+            const hrRecordsSnap = await db.collection('hrRecords').get();
+            const hrDataMap = {};
+            hrRecordsSnap.docs.forEach(doc => { hrDataMap[doc.id] = doc.data(); });
+            
             document.getElementById('app').innerHTML = `
-                <div class="min-h-screen bg-gray-100 p-4"><div class="max-w-6xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">HR Input</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div>
-                <div class="bg-white rounded-2xl shadow p-6 overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50"><tr><th>Employee</th><th>Company</th><th>Late</th><th>NPSL</th><th>NPL</th><th>AWOL</th><th>Type A</th><th>Type B</th><th>Type C</th><th>Score</th></thead>
-                <tbody>${employees.map(emp => `<tr><td class="p-2 font-medium">${emp.data().name}</td><td class="p-2"><span class="company-badge company-${emp.data().company}">${emp.data().company}</span></td>${['late','npsl','npl','awol','warningA','warningB','warningC'].map(f => `<td><input type="number" id="${f}-${emp.id}" value="0" min="0" class="w-16 border rounded p-1 text-center"><td>`).join('')}<td id="score-${emp.id}" class="font-bold text-center">100</td></tr>`).join('')}</tbody>}</table></div></div></div>`;
-            employees.forEach(emp => { ['late','npsl','npl','awol','warningA','warningB','warningC'].forEach(f => { document.getElementById(`${f}-${emp.id}`)?.addEventListener('input', () => { const late=parseInt(document.getElementById(`late-${emp.id}`).value)||0, npsl=parseInt(document.getElementById(`npsl-${emp.id}`).value)||0, npl=parseInt(document.getElementById(`npl-${emp.id}`).value)||0, awol=parseInt(document.getElementById(`awol-${emp.id}`).value)||0, wa=parseInt(document.getElementById(`warningA-${emp.id}`).value)||0, wb=parseInt(document.getElementById(`warningB-${emp.id}`).value)||0, wc=parseInt(document.getElementById(`warningC-${emp.id}`).value)||0; const deduction=(late*2)+(npsl*2)+(npl*2)+(awol*10)+(wa*5)+(wb*10)+(wc*20); document.getElementById(`score-${emp.id}`).innerText = Math.max(0,100-deduction); }); }); });
+                <div class="min-h-screen bg-gray-100 p-4">
+                    <div class="max-w-6xl mx-auto">
+                        <div class="flex justify-between mb-4">
+                            <h1 class="text-2xl font-bold">HR Input</h1>
+                            <button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button>
+                        </div>
+                        <div class="bg-white rounded-2xl shadow p-6 overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr><th>Employee</th><th>Company</th><th>Late</th><th>NPSL</th><th>NPL</th><th>AWOL</th><th>Type A</th><th>Type B</th><th>Type C</th><th>Score</th></tr>
+                                </thead>
+                                <tbody>
+                                    ${employees.map(emp => {
+                                        const hr = hrDataMap[emp.id] || {};
+                                        return `<tr>
+                                            <td class="p-2 font-medium">${emp.data().name}</td>
+                                            <td class="p-2"><span class="company-badge company-${emp.data().company}">${emp.data().company}</span></td>
+                                            <td><input type="number" id="late-${emp.id}" value="${hr.late || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="npsl-${emp.id}" value="${hr.npsl || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="npl-${emp.id}" value="${hr.npl || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="awol-${emp.id}" value="${hr.awol || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="warningA-${emp.id}" value="${hr.warningA || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="warningB-${emp.id}" value="${hr.warningB || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td><input type="number" id="warningC-${emp.id}" value="${hr.warningC || 0}" min="0" class="w-16 border rounded p-1 text-center"></td>
+                                            <td id="score-${emp.id}" class="font-bold text-center">100</td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                            <div class="mt-4 flex gap-3">
+                                <button onclick="saveAllHrData()" class="bg-green-600 text-white px-6 py-2 rounded-lg"><i class="fas fa-save"></i> Save All HR Data</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            employees.forEach(emp => {
+                const fields = ['late','npsl','npl','awol','warningA','warningB','warningC'];
+                fields.forEach(f => {
+                    const input = document.getElementById(`${f}-${emp.id}`);
+                    if (input) input.addEventListener('input', () => updateHrScoreDisplay(emp.id));
+                });
+                updateHrScoreDisplay(emp.id);
+            });
+        };
+        
+        function updateHrScoreDisplay(empId) {
+            const late = parseInt(document.getElementById(`late-${empId}`)?.value) || 0;
+            const npsl = parseInt(document.getElementById(`npsl-${empId}`)?.value) || 0;
+            const npl = parseInt(document.getElementById(`npl-${empId}`)?.value) || 0;
+            const awol = parseInt(document.getElementById(`awol-${empId}`)?.value) || 0;
+            const wa = parseInt(document.getElementById(`warningA-${empId}`)?.value) || 0;
+            const wb = parseInt(document.getElementById(`warningB-${empId}`)?.value) || 0;
+            const wc = parseInt(document.getElementById(`warningC-${empId}`)?.value) || 0;
+            const deduction = (late * appSettings.deductions.late) + (npsl * appSettings.deductions.npsl) + (npl * appSettings.deductions.npl) + (awol * appSettings.deductions.awol) + (wa * appSettings.deductions.warningA) + (wb * appSettings.deductions.warningB) + (wc * appSettings.deductions.warningC);
+            const score = Math.max(0, 100 - deduction);
+            const scoreSpan = document.getElementById(`score-${empId}`);
+            if (scoreSpan) scoreSpan.innerText = score;
+        }
+        
+        window.saveAllHrData = async () => {
+            const allUsers = await db.collection('users').get();
+            const employees = allUsers.docs.filter(d => d.data().role === 'employee');
+            for (const emp of employees) {
+                const id = emp.id;
+                const late = parseInt(document.getElementById(`late-${id}`)?.value) || 0;
+                const npsl = parseInt(document.getElementById(`npsl-${id}`)?.value) || 0;
+                const npl = parseInt(document.getElementById(`npl-${id}`)?.value) || 0;
+                const awol = parseInt(document.getElementById(`awol-${id}`)?.value) || 0;
+                const warningA = parseInt(document.getElementById(`warningA-${id}`)?.value) || 0;
+                const warningB = parseInt(document.getElementById(`warningB-${id}`)?.value) || 0;
+                const warningC = parseInt(document.getElementById(`warningC-${id}`)?.value) || 0;
+                const deduction = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(warningA*appSettings.deductions.warningA)+(warningB*appSettings.deductions.warningB)+(warningC*appSettings.deductions.warningC);
+                const score = Math.max(0, 100-deduction);
+                await db.collection('hrRecords').doc(id).set({ late, npsl, npl, awol, warningA, warningB, warningC, score, updatedAt: new Date().toISOString() });
+            }
+            showToast('All HR data saved successfully');
+            showResultsReport();
         };
 
-        // ============ ADMIN CONTROL PANEL ============
+        // ============ ADMIN CONTROL PANEL (fully preserved) ============
         window.showAdminPanel = async () => {
             document.getElementById('app').innerHTML = `
                 <div class="min-h-screen bg-gray-100 p-4">
@@ -719,7 +832,18 @@
         window.saveCompanies = () => { const companies = []; document.querySelectorAll('.company-input').forEach(inp => { if (inp.value.trim()) companies.push(inp.value.trim()); }); appSettings.companies = companies; saveSettings(); showToast('Companies saved'); renderDashboard(); };
         window.saveWeights = () => { appSettings.operationWeight = parseFloat(document.getElementById('opWeight').value); appSettings.hrWeight = parseFloat(document.getElementById('hrWeight').value); saveSettings(); showToast('Weights saved'); };
         window.saveDeductions = () => { appSettings.deductions = { late: parseInt(document.getElementById('ded_late').value), npsl: parseInt(document.getElementById('ded_npsl').value), npl: parseInt(document.getElementById('ded_npl').value), awol: parseInt(document.getElementById('ded_awol').value), warningA: parseInt(document.getElementById('ded_warningA').value), warningB: parseInt(document.getElementById('ded_warningB').value), warningC: parseInt(document.getElementById('ded_warningC').value) }; saveSettings(); showToast('Deductions saved'); };
-        window.exportSystemData = async () => { const users = await db.collection('users').get(); const ratings = await db.collection('ratings').get(); let csv = '"Name","Email","Role","Company"\n'; users.docs.forEach(d => csv += `"${d.data().name}","${d.data().email}","${d.data().role}","${d.data().company}"\n`); csv += '\n"From","To","Rating","Comments"\n'; ratings.docs.forEach(d => csv += `"${d.data().raterName}","${d.data().revieweeName}",${d.data().average},"${(d.data().comments||'').replace(/"/g,'""')}"\n`); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `system_export_${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url); showToast('Data exported'); };
+        
+        window.exportSystemData = async () => {
+            const users = await db.collection('users').get();
+            const ratings = await db.collection('ratings').get();
+            const escape = (s) => `"${String(s).replace(/"/g, '""')}"`;
+            let csv = "\uFEFF" + ["Name","Email","Role","Company"].map(escape).join(",") + "\n";
+            users.docs.forEach(d => { csv += [d.data().name, d.data().email, d.data().role, d.data().company].map(escape).join(",") + "\n"; });
+            csv += "\n" + ["From","To","Rating","Comments","Quarter"].map(escape).join(",") + "\n";
+            ratings.docs.forEach(d => { csv += [d.data().raterName, d.data().revieweeName, d.data().average, d.data().comments || '', d.data().quarter || ''].map(escape).join(",") + "\n"; });
+            const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `system_export_${new Date().toISOString().split('T')[0]}.csv`; a.click(); URL.revokeObjectURL(url); showToast('Data exported');
+        };
+        
         window.resetSystemData = async () => { if (confirm('Delete all ratings? This cannot be undone.')) { const ratings = await db.collection('ratings').get(); ratings.forEach(d => d.ref.delete()); showToast('Data reset'); renderDashboard(); } };
 
         initializeDemoData();
