@@ -66,10 +66,10 @@
                 hrWeight: 0.3,
                 deductions: { late: 2, npsl: 2, npl: 2, awol: 10, warningA: 5, warningB: 10, warningC: 20 },
                 questions: [
-                    "Communication", "Teamwork", "Problem Solving", "Leadership", "Reliability",
-                    "Adaptability", "Quality of Work", "Productivity", "Initiative", "Accountability",
-                    "Collaboration", "Customer Focus", "Decision Making", "Planning", "Organization",
-                    "Time Management", "Technical Skills", "Interpersonal Skills", "Conflict Resolution", "Professionalism"
+                    "1. Able to Work Independently", "2. Apply acquired knowledge and skills efficiently", "3. Update Promptly on Assigned Work", "4. Complete the assigned tasks on times", "5. Compliance with Company Policies and Rules strictly",
+                    "6. Follow the Department's Procedures and SOP strictly", "7. Execute the Tasks from Superiors and Management", "8. Well-presented and Manner for Company image", "9. Be clear, precise and conclusive", "10. Convey the message to other Clearly",
+                    "11. Adapt yourself to communicate with team members effectively", "12. Express own opinions clearly and willing to listen and accept others opinion", "13. Improve Work Quality Continuously", "14. Proactive and Motivated", "15. Strong sense of Responsibility",
+                    "16. Provide Sevice in professional and frinedly manner", "17. Respect and be polite to individuals", "19. With integrity and Honesty, not Slanderous", "Conflict Resolution", "20. Acted with Fairness, Trustworthy"
                 ]
             };
 
@@ -293,7 +293,6 @@
                                 <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button>
                             </form>
                             <div class="mt-4 text-center text-xs text-gray-400">
-                                <p>Demo: admin@company.com / password<br>sarah@nuebe.com (HR) / password</p>
                             </div>
                         </div>
                     </div>
@@ -744,7 +743,7 @@
                 const quarterOptions = generateQuarterOptions();
                 let questionsHtml = '';
                 appSettings.questions.forEach((q, idx) => {
-                    questionsHtml += `<div class="mb-4 p-3 border rounded"><div class="font-medium text-sm mb-2">${q}</div><div class="flex gap-2 flex-wrap">${[1,2,3,4,5].map(s => `<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${idx}" data-score="${s}" onclick="selectRating(${idx},${s})">${s}</button>`).join('')}<span class="text-xs text-gray-400 ml-2">1=Poor 5=Outstanding</span></div><input type="hidden" id="q${idx}" value=""></div>`;
+                    questionsHtml += `<div class="mb-4 p-3 border rounded"><div class="font-medium text-sm mb-2">${q}</div><div class="flex gap-2 flex-wrap">${[1,2,3,4,5].map(s => `<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${idx}" data-score="${s}" onclick="selectRating(${idx},${s})">${s}</button>`).join('')}<span class="text-xs text-gray-400 ml-2">1=Poor 2=Needs Improvement 3=Satisfactory 4=Outstanding 5=Excellent</span></div><input type="hidden" id="q${idx}" value=""></div>`;
                 });
                 document.getElementById('app').innerHTML = `
                     <div class="min-h-screen bg-gray-100 p-4"><div class="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-2">Evaluating: ${revieweeName}</h2><form id="evalForm"><div class="mb-4"><label class="block text-sm font-medium mb-1">Quarter</label><select id="evalQuarter" class="border rounded p-2 w-full">${quarterOptions.map(q => `<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select></div>${questionsHtml}<textarea id="comments" rows="3" placeholder="Additional comments" class="w-full border rounded p-3 mt-4"></textarea><div class="flex gap-3 mt-6"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full">Submit</button><button type="button" onclick="renderDashboard()" class="bg-gray-500 text-white px-6 py-2 rounded-full">Cancel</button></div></form></div></div>
