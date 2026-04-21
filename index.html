@@ -36,6 +36,10 @@
         .notification-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .notification-item:hover { background: #f8fafc; }
         .notification-item.unread { background: #eff6ff; }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+        .question-item { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px; border: 1px solid #e5e7eb; }
+        .question-item.dragging { opacity: 0.5; }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -65,7 +69,45 @@
                 operationWeight: 0.7,
                 hrWeight: 0.3,
                 deductions: { late: 2, npsl: 2, npl: 2, awol: 10, warningA: 5, warningB: 10, warningC: 20 },
-                questions: ["1. Able to Work Independently ","2. Apply acquired knowledge and skills efficiently","3. Update Promptly on Assigned Work","4. Complete the assigned tasks on times","5. Compliance with Company Policies and Rules strictly","6. Follow the Department's Procedures and SOP strictly","7. Execute the Tasks from Superiors and Management","8. Well-presented and Manner for Company image","9. Be clear, precise and conclusive","10. Convey the message to other Clearly","11. Adapt yourself to communicate with team members effectively","12. Express own opinions clearly and willing to listen and accept others opinion","13. Improve Work Quality Continuously","14. Proactive and Motivated","15. Strong sense of Responsibility","16. Provide Sevice in professional and frinedly manner","17. Respect and be polite to individuals","18. Respect the individual's Privacy and Highly protect the confidetiality of Company and Clients' Information","19. With integrity and Honesty, not Slanderous","20. Acted with Fairness, Trustworthy"]
+                employeeQuestions: [
+                    "1. Able to Work Independently",
+                    "2. Apply acquired knowledge and skills efficiently",
+                    "3. Update Promptly on Assigned Work",
+                    "4. Complete the assigned tasks on times",
+                    "5. Compliance with Company Policies and Rules strictly",
+                    "6. Follow the Department's Procedures and SOP strictly",
+                    "7. Execute the Tasks from Superiors and Management",
+                    "8. Well-presented and Manner for Company image",
+                    "9. Be clear, precise and conclusive",
+                    "10. Convey the message to other Clearly",
+                    "11. Adapt yourself to communicate with team members effectively",
+                    "12. Express own opinions clearly and willing to listen and accept others opinion",
+                    "13. Improve Work Quality Continuously",
+                    "14. Proactive and Motivated",
+                    "15. Strong sense of Responsibility",
+                    "16. Provide Service in professional and friendly manner",
+                    "17. Respect and be polite to individuals",
+                    "18. Respect the individual's Privacy and Highly protect the confidentiality of Company and Clients' Information",
+                    "19. With integrity and Honesty, not Slanderous",
+                    "20. Acted with Fairness, Trustworthy"
+                ],
+                managerQuestions: [
+                    "1. Strategic Thinking & Planning",
+                    "2. Team Leadership & Development",
+                    "3. Decision Making & Problem Solving",
+                    "4. Communication & Influence",
+                    "5. Conflict Resolution",
+                    "6. Delegation & Empowerment",
+                    "7. Performance Management",
+                    "8. Change Management",
+                    "9. Emotional Intelligence",
+                    "10. Accountability & Ownership",
+                    "11. Coaching & Mentoring",
+                    "12. Resource Management",
+                    "13. Innovation & Creativity",
+                    "14. Stakeholder Management",
+                    "15. Ethical Conduct & Integrity"
+                ]
             };
 
             function getCurrentQuarter() { const d = new Date(); return `${d.getFullYear()}-Q${Math.floor(d.getMonth()/3)+1}`; }
@@ -75,7 +117,26 @@
             function showToast(msg, isErr=false) { const t = document.createElement('div'); t.className = `toast ${isErr?'error':''}`; t.innerText = msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3000); }
             function showLoading(id='app') { document.getElementById(id).innerHTML = '<div class="loading-spinner"></div>'; }
 
-            async function loadSettings() { try { const d = await db.collection('settings').doc('appConfig').get(); if(d.exists) Object.assign(appSettings, d.data()); } catch(e){} }
+            async function loadSettings() {
+                try {
+                    const d = await db.collection('settings').doc('appConfig').get();
+                    if(d.exists) {
+                        const data = d.data();
+                        Object.assign(appSettings, data);
+                        // Ensure both question arrays exist
+                        if (!appSettings.employeeQuestions) appSettings.employeeQuestions = [...appSettings.questions || []];
+                        if (!appSettings.managerQuestions) appSettings.managerQuestions = [
+                            "1. Strategic Thinking & Planning", "2. Team Leadership & Development", "3. Decision Making & Problem Solving",
+                            "4. Communication & Influence", "5. Conflict Resolution", "6. Delegation & Empowerment", "7. Performance Management",
+                            "8. Change Management", "9. Emotional Intelligence", "10. Accountability & Ownership", "11. Coaching & Mentoring",
+                            "12. Resource Management", "13. Innovation & Creativity", "14. Stakeholder Management", "15. Ethical Conduct & Integrity"
+                        ];
+                    } else {
+                        // Initialize with defaults if not exists
+                        await saveSettings();
+                    }
+                } catch(e) { console.error('Settings load error', e); }
+            }
             async function saveSettings() { await db.collection('settings').doc('appConfig').set(appSettings); showToast('Settings saved'); }
 
             // Notifications with fallback
@@ -193,7 +254,6 @@
                     const user = u.data();
                     if(user.role==='admin') continue;
                     const p = peer[u.id];
-                    // Skip users with no ratings in selected quarter
                     if(!p || p.count===0) continue;
                     const op = (p.total/p.count)*20;
                     const hr = hrMap[u.id];
@@ -235,26 +295,187 @@
                 const avgScore = feedbacks.length ? (feedbacks.reduce((a,b)=>a+(b.average||0),0)/feedbacks.length).toFixed(1) : 0;
                 const low = feedbacks.filter(r=>r.average<3);
                 const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company && d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
-                // Get ratings made by current user in the CURRENT QUARTER only
                 const myRatingsSnap = await db.collection('ratings')
                     .where('raterId','==',currentUser.uid)
                     .where('quarter','==',selectedQuarter)
                     .get();
                 const completedThisQuarter = myRatingsSnap.docs.map(d=>d.data().revieweeId);
                 const pending = companyUsers.filter(u=>u.id!==currentUser.uid && !completedThisQuarter.includes(u.id));
-                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('home')}<div class="container mx-auto p-4 max-w-6xl">${low.length?`<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded"><i class="fas fa-exclamation-triangle"></i> Low Rating Alert: ${low.length} ratings below 3.0</div>`:''}<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Dashboard (${selectedQuarter})</h2><select id="quarterFilter" class="border rounded p-2 text-sm mr-2" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select><select id="companyFilter" class="border rounded p-2 text-sm" onchange="applyCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div><div class="grid md:grid-cols-4 gap-4 mb-6"><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-blue-600">${feedbacks.length}</div><div class="text-sm">Total Feedback</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-green-600">${avgScore}</div><div class="text-sm">Avg Rating</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-yellow-600">${pending.length}</div><div class="text-sm">Pending (${selectedQuarter})</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-purple-600">${allU.docs.filter(d=>d.data().role==='employee').length}</div><div class="text-sm">Employees</div></div></div><div class="bg-white rounded-2xl shadow p-6"><h3 class="font-bold mb-4">📋 Pending Evaluations (${selectedQuarter})</h3>${pending.length ? `<div class="space-y-3">${pending.map(u=>`<div class="border rounded-xl p-4 flex justify-between items-center"><div><span class="font-medium">${u.name}</span><span class="text-xs text-gray-500 ml-2">${u.role}</span></div><button onclick="startEvaluation('${u.id}','${u.name}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fas fa-star"></i> Evaluate</button></div>`).join('')}</div>` : '<p class="text-gray-500 text-center py-4">All evaluations for this quarter are complete!</p>'}</div></div></div>`;
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('home')}<div class="container mx-auto p-4 max-w-6xl">${low.length?`<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded"><i class="fas fa-exclamation-triangle"></i> Low Rating Alert: ${low.length} ratings below 3.0</div>`:''}<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Dashboard (${selectedQuarter})</h2><select id="quarterFilter" class="border rounded p-2 text-sm mr-2" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select><select id="companyFilter" class="border rounded p-2 text-sm" onchange="applyCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div><div class="grid md:grid-cols-4 gap-4 mb-6"><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-blue-600">${feedbacks.length}</div><div class="text-sm">Total Feedback</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-green-600">${avgScore}</div><div class="text-sm">Avg Rating</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-yellow-600">${pending.length}</div><div class="text-sm">Pending (${selectedQuarter})</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-purple-600">${allU.docs.filter(d=>d.data().role==='employee').length}</div><div class="text-sm">Employees</div></div></div><div class="bg-white rounded-2xl shadow p-6"><h3 class="font-bold mb-4">📋 Pending Evaluations (${selectedQuarter})</h3>${pending.length ? `<div class="space-y-3">${pending.map(u=>`<div class="border rounded-xl p-4 flex justify-between items-center"><div><span class="font-medium">${u.name}</span><span class="text-xs text-gray-500 ml-2">${u.role}</span></div><button onclick="startEvaluation('${u.id}','${u.name}','${u.role}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fas fa-star"></i> Evaluate</button></div>`).join('')}</div>` : '<p class="text-gray-500 text-center py-4">All evaluations for this quarter are complete!</p>'}</div></div></div>`;
             }
             window.changeSelectedQuarter = (q) => { selectedQuarter = q; renderDashboard(); };
             window.applyCompanyFilter = (v) => { selectedCompanyFilter=v; renderDashboard(); };
-            window.startEvaluation = async (rid, rname) => { if(rid===currentUser.uid) return showToast('Cannot self-evaluate',true); const qOpts = generateQuarterOptions(); let qHtml = ''; appSettings.questions.forEach((q,i)=>{ qHtml += `<div class="mb-4 p-3 border rounded"><div class="font-medium text-sm mb-2">${q}</div><div class="flex gap-2 flex-wrap">${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}<span class="text-xs text-gray-400 ml-2">1=Poor 2=Needs Improvement 3=Satisfactory 4=Outstanding 5=Excellent</span></div><input type="hidden" id="q${i}" value=""></div>`; }); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4"><div class="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-2">Evaluating: ${rname}</h2><form id="evalForm"><div class="mb-4"><label class="block text-sm font-medium mb-1">Quarter</label><select id="evalQuarter" class="border rounded p-2 w-full">${qOpts.map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select></div>${qHtml}<textarea id="comments" rows="3" placeholder="Additional comments" class="w-full border rounded p-3 mt-4"></textarea><div class="flex gap-3 mt-6"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full">Submit</button><button type="button" onclick="renderDashboard()" class="bg-gray-500 text-white px-6 py-2 rounded-full">Cancel</button></div></form></div></div>`; window.selectRating = (i,s) => { document.getElementById(`q${i}`).value = s; document.querySelectorAll(`.rating-btn[data-q="${i}"]`).forEach(b=>b.classList.remove('selected','bg-blue-600','text-white')); document.querySelectorAll(`.rating-btn[data-q="${i}"][data-score="${s}"]`).forEach(b=>b.classList.add('selected','bg-blue-600','text-white')); }; document.getElementById('evalForm').addEventListener('submit',async(e)=>{ e.preventDefault(); let total=0; const scores={}; for(let i=0;i<appSettings.questions.length;i++){ const v = document.getElementById(`q${i}`).value; if(!v) return showToast(`Rate question ${i+1}`,true); total += parseInt(v); scores[appSettings.questions[i]] = parseInt(v); } const avg = (total/appSettings.questions.length).toFixed(1); const qtr = document.getElementById('evalQuarter').value; await db.collection('ratings').add({ raterId:currentUser.uid, raterName:currentUserData.name, revieweeId:rid, revieweeName:rname, scores, total, average:parseFloat(avg), company:currentUserData.company, quarter:qtr, comments:document.getElementById('comments').value||'', createdAt:new Date().toISOString() }); await createNotification(rid, `You received new feedback`, 'success', 'myresults'); showToast('Submitted!'); renderDashboard(); }); };
+            window.startEvaluation = async (rid, rname, rrole) => {
+                if(rid===currentUser.uid) return showToast('Cannot self-evaluate',true);
+                // Determine which question set to use based on reviewee role
+                let questionSet = appSettings.employeeQuestions;
+                if (rrole === 'manager' || rrole === 'hr') {
+                    questionSet = appSettings.managerQuestions;
+                }
+                const qOpts = generateQuarterOptions();
+                let qHtml = '';
+                questionSet.forEach((q,i)=>{ qHtml += `<div class="mb-4 p-3 border rounded"><div class="font-medium text-sm mb-2">${q}</div><div class="flex gap-2 flex-wrap">${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}<span class="text-xs text-gray-400 ml-2">1=Poor 2=Needs Improvement 3=Satisfactory 4=Outstanding 5=Excellent</span></div><input type="hidden" id="q${i}" value=""></div>`; });
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4"><div class="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-2">Evaluating: ${rname} (${rrole})</h2><form id="evalForm"><div class="mb-4"><label class="block text-sm font-medium mb-1">Quarter</label><select id="evalQuarter" class="border rounded p-2 w-full">${qOpts.map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select></div>${qHtml}<textarea id="comments" rows="3" placeholder="Additional comments" class="w-full border rounded p-3 mt-4"></textarea><div class="flex gap-3 mt-6"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full">Submit</button><button type="button" onclick="renderDashboard()" class="bg-gray-500 text-white px-6 py-2 rounded-full">Cancel</button></div></form></div></div>`;
+                window.selectRating = (i,s) => { document.getElementById(`q${i}`).value = s; document.querySelectorAll(`.rating-btn[data-q="${i}"]`).forEach(b=>b.classList.remove('selected','bg-blue-600','text-white')); document.querySelectorAll(`.rating-btn[data-q="${i}"][data-score="${s}"]`).forEach(b=>b.classList.add('selected','bg-blue-600','text-white')); };
+                document.getElementById('evalForm').addEventListener('submit',async(e)=>{
+                    e.preventDefault(); let total=0; const scores={};
+                    for(let i=0;i<questionSet.length;i++){ const v = document.getElementById(`q${i}`).value; if(!v) return showToast(`Rate question ${i+1}`,true); total += parseInt(v); scores[questionSet[i]] = parseInt(v); }
+                    const avg = (total/questionSet.length).toFixed(1); const qtr = document.getElementById('evalQuarter').value;
+                    await db.collection('ratings').add({ raterId:currentUser.uid, raterName:currentUserData.name, revieweeId:rid, revieweeName:rname, scores, total, average:parseFloat(avg), company:currentUserData.company, quarter:qtr, comments:document.getElementById('comments').value||'', createdAt:new Date().toISOString() });
+                    await createNotification(rid, `You received new feedback`, 'success', 'myresults');
+                    showToast('Submitted!'); renderDashboard();
+                });
+            };
             async function viewMyResults() { showLoading(); await fetchNotifications(); const snap = await db.collection('ratings').where('revieweeId','==',currentUser.uid).get(); const ratings = snap.docs.map(d=>d.data()); const avg = ratings.length ? (ratings.reduce((a,b)=>a+b.average,0)/ratings.length).toFixed(1) : 0; document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('myresults')}<div class="max-w-3xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">My Results</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div><div class="bg-white rounded-2xl shadow p-6"><div class="text-center p-6"><div class="text-5xl font-bold text-blue-600">${avg}</div><div class="text-gray-500">from ${ratings.length} reviewers</div></div>${ratings.filter(r=>r.comments).length?`<div class="mt-4"><h3 class="font-bold">Comments:</h3>${ratings.filter(r=>r.comments).map(r=>`<div class="bg-gray-50 p-3 rounded mt-2 italic">"${r.comments}"</div>`).join('')}</div>`:''}</div></div></div>`; }
 
-            // All Feedback, HR Input, Admin Panel (same as before, omitted for brevity but included in the final file)
             window.showAllFeedback = async () => { showLoading(); await fetchNotifications(); const ratings = await db.collection('ratings').get(); let feedbacks = ratings.docs.map(d=>d.data()); if(selectedCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===selectedCompanyFilter); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('feedback')}<div class="max-w-4xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">All Feedback</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div><div class="bg-white rounded-2xl shadow p-6">${feedbacks.length ? feedbacks.map(f=>`<div class="border-b pb-3 mb-3"><span class="font-bold">${f.raterName}</span> → <span class="font-bold">${f.revieweeName}</span> <span class="float-right">⭐ ${f.average}</span><p class="italic">"${f.comments||'No comments'}"</p><div class="text-xs text-gray-400">${f.quarter||'No quarter'} - ${new Date(f.createdAt).toLocaleDateString()}</div></div>`).join('') : '<p class="text-center text-gray-400 py-8">No feedback yet</p>'}</div></div></div>`; };
             window.showHrInputPage = async () => { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); let emps = allU.docs.filter(d=>d.data().role==='employee'); if(selectedCompanyFilter!=='all') emps = emps.filter(e=>e.data().company===selectedCompanyFilter); const hrRec = await db.collection('hrRecords').get(); const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); }); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('hrinput')}<div class="max-w-6xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">HR Input</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div><div class="bg-white rounded-2xl shadow p-6 overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50"><tr><th>Employee</th><th>Company</th><th>Late</th><th>NPSL</th><th>NPL</th><th>AWOL</th><th>Type A</th><th>Type B</th><th>Type C</th><th>Score</th></tr></thead><tbody>${emps.map(e=>{ const hr = hrMap[e.id]||{}; return `<tr><td class="p-2 font-medium">${e.data().name}</td><td class="p-2"><span class="company-badge company-${e.data().company}">${e.data().company}</span></td><td><input type="number" id="late-${e.id}" value="${hr.late||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="npsl-${e.id}" value="${hr.npsl||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="npl-${e.id}" value="${hr.npl||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="awol-${e.id}" value="${hr.awol||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningA-${e.id}" value="${hr.warningA||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningB-${e.id}" value="${hr.warningB||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningC-${e.id}" value="${hr.warningC||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td id="score-${e.id}" class="font-bold text-center">100</td></tr>`; }).join('')}</tbody></table><div class="mt-4"><button onclick="saveAllHrData()" class="bg-green-600 text-white px-6 py-2 rounded-lg"><i class="fas fa-save"></i> Save All HR Data</button></div></div></div></div>`; emps.forEach(e=>{ const fs = ['late','npsl','npl','awol','warningA','warningB','warningC']; fs.forEach(f=>{ const inp = document.getElementById(`${f}-${e.id}`); if(inp) inp.addEventListener('input',()=>updateHrScoreDisplay(e.id)); }); updateHrScoreDisplay(e.id); }); };
             function updateHrScoreDisplay(empId) { const late = parseInt(document.getElementById(`late-${empId}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${empId}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${empId}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${empId}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${empId}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${empId}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${empId}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); const span = document.getElementById(`score-${empId}`); if(span) span.innerText = score; }
             window.saveAllHrData = async () => { const allU = await db.collection('users').get(); const emps = allU.docs.filter(d=>d.data().role==='employee'); for(const e of emps) { const id = e.id; const late = parseInt(document.getElementById(`late-${id}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${id}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${id}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${id}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${id}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${id}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${id}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); await db.collection('hrRecords').doc(id).set({ late,npsl,npl,awol,warningA:wa,warningB:wb,warningC:wc,score,updatedAt:new Date().toISOString() }); } showToast('Saved'); showResultsReport(); };
-            window.showAdminPanel = async () => { await fetchNotifications(); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('admin')}<div class="max-w-5xl mx-auto"><h1 class="text-2xl font-bold mb-4">⚙️ Admin Control Panel</h1><div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📤 Bulk Import Users (CSV)</h2><p class="text-sm mb-3">CSV columns: Name, Email, Role, Company, Password (optional)</p><input type="file" id="csvFileInput" accept=".csv" class="mb-3"><button onclick="importUsersFromCSV()" class="bg-blue-600 text-white px-4 py-2 rounded">Import Users</button><div id="importResult" class="mt-3 text-sm"></div></div><div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏢 Companies</h2><div id="companiesList">${appSettings.companies.map(c=>`<div class="flex gap-2 mb-2"><input type="text" value="${c}" class="company-input flex-grow border rounded p-2"><button onclick="removeCompany(this)" class="bg-red-500 text-white px-3 rounded">X</button></div>`).join('')}</div><button onclick="addCompany()" class="bg-green-600 text-white px-4 py-2 rounded mt-2">+ Add Company</button><button onclick="saveCompanies()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2 ml-2">Save Companies</button></div><div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚖️ Weights</h2><div class="grid grid-cols-2 gap-4"><div><label>Operation Weight</label><input type="number" id="opWeight" step="0.05" value="${appSettings.operationWeight}" class="w-full border rounded p-2"></div><div><label>HR Weight</label><input type="number" id="hrWeight" step="0.05" value="${appSettings.hrWeight}" class="w-full border rounded p-2"></div></div><button onclick="saveWeights()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Weights</button></div><div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📝 Deduction Points</h2><div class="grid grid-cols-2 gap-4"><div><label>Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" class="w-full border rounded p-2"></div><div><label>NPSL</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" class="w-full border rounded p-2"></div><div><label>NPL</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" class="w-full border rounded p-2"></div><div><label>AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" class="w-full border rounded p-2"></div><div><label>Type A</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" class="w-full border rounded p-2"></div><div><label>Type B</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" class="w-full border rounded p-2"></div><div><label>Type C</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" class="w-full border rounded p-2"></div></div><button onclick="saveDeductions()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Deductions</button></div><div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Data</button></div></div></div>`; };
+            
+            // Admin Panel with Question Manager for Employee and Manager sets
+            window.showAdminPanel = async () => {
+                await fetchNotifications();
+                const renderQuestionList = (type) => {
+                    const questions = type === 'employee' ? appSettings.employeeQuestions : appSettings.managerQuestions;
+                    return questions.map((q, idx) => `
+                        <div class="question-item flex items-center gap-2" draggable="true" data-index="${idx}" data-type="${type}">
+                            <span class="drag-handle px-2"><i class="fas fa-grip-vertical text-gray-400"></i></span>
+                            <input type="text" value="${q.replace(/"/g, '&quot;')}" class="flex-grow border rounded p-2 text-sm" data-qindex="${idx}" data-type="${type}">
+                            <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `).join('');
+                };
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('admin')}<div class="max-w-5xl mx-auto"><h1 class="text-2xl font-bold mb-4">⚙️ Admin Control Panel</h1>
+                <!-- Question Manager -->
+                <div class="bg-white rounded-2xl shadow p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4"><i class="fas fa-list-check mr-2"></i>Evaluation Questions</h2>
+                    <div class="flex gap-4 mb-4">
+                        <button id="tabEmployee" class="px-4 py-2 rounded-t-lg bg-blue-600 text-white" onclick="switchQuestionTab('employee')">Employee Questions</button>
+                        <button id="tabManager" class="px-4 py-2 rounded-t-lg bg-gray-200" onclick="switchQuestionTab('manager')">Manager Questions</button>
+                    </div>
+                    <div id="employeeQuestionsPanel">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-semibold">Employee Evaluation Questions</h3>
+                            <button onclick="addQuestion('employee')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add</button>
+                        </div>
+                        <div id="employeeQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'employee')">
+                            ${renderQuestionList('employee')}
+                        </div>
+                    </div>
+                    <div id="managerQuestionsPanel" class="hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-semibold">Manager Evaluation Questions</h3>
+                            <button onclick="addQuestion('manager')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add</button>
+                        </div>
+                        <div id="managerQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'manager')">
+                            ${renderQuestionList('manager')}
+                        </div>
+                    </div>
+                    <button onclick="saveQuestionsFromUI()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Questions</button>
+                    <p class="text-xs text-gray-500 mt-2">Drag items to reorder. Changes apply after save.</p>
+                </div>
+                <!-- Bulk Import -->
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📤 Bulk Import Users (CSV)</h2><p class="text-sm mb-3">CSV columns: Name, Email, Role, Company, Password (optional)</p><input type="file" id="csvFileInput" accept=".csv" class="mb-3"><button onclick="importUsersFromCSV()" class="bg-blue-600 text-white px-4 py-2 rounded">Import Users</button><div id="importResult" class="mt-3 text-sm"></div></div>
+                <!-- Companies -->
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏢 Companies</h2><div id="companiesList">${appSettings.companies.map(c=>`<div class="flex gap-2 mb-2"><input type="text" value="${c}" class="company-input flex-grow border rounded p-2"><button onclick="removeCompany(this)" class="bg-red-500 text-white px-3 rounded">X</button></div>`).join('')}</div><button onclick="addCompany()" class="bg-green-600 text-white px-4 py-2 rounded mt-2">+ Add Company</button><button onclick="saveCompanies()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2 ml-2">Save Companies</button></div>
+                <!-- Weights & Deductions -->
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚖️ Weights</h2><div class="grid grid-cols-2 gap-4"><div><label>Operation Weight</label><input type="number" id="opWeight" step="0.05" value="${appSettings.operationWeight}" class="w-full border rounded p-2"></div><div><label>HR Weight</label><input type="number" id="hrWeight" step="0.05" value="${appSettings.hrWeight}" class="w-full border rounded p-2"></div></div><button onclick="saveWeights()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Weights</button></div>
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📝 Deduction Points</h2><div class="grid grid-cols-2 gap-4"><div><label>Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" class="w-full border rounded p-2"></div><div><label>NPSL</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" class="w-full border rounded p-2"></div><div><label>NPL</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" class="w-full border rounded p-2"></div><div><label>AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" class="w-full border rounded p-2"></div><div><label>Type A</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" class="w-full border rounded p-2"></div><div><label>Type B</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" class="w-full border rounded p-2"></div><div><label>Type C</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" class="w-full border rounded p-2"></div></div><button onclick="saveDeductions()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Deductions</button></div>
+                <!-- System Actions -->
+                <div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Data</button></div></div></div>`;
+                setupDragAndDrop();
+            };
+            
+            window.switchQuestionTab = (type) => {
+                document.getElementById('employeeQuestionsPanel').classList.toggle('hidden', type !== 'employee');
+                document.getElementById('managerQuestionsPanel').classList.toggle('hidden', type !== 'manager');
+                document.getElementById('tabEmployee').classList.toggle('bg-blue-600', type === 'employee');
+                document.getElementById('tabEmployee').classList.toggle('text-white', type === 'employee');
+                document.getElementById('tabEmployee').classList.toggle('bg-gray-200', type !== 'employee');
+                document.getElementById('tabManager').classList.toggle('bg-blue-600', type === 'manager');
+                document.getElementById('tabManager').classList.toggle('text-white', type === 'manager');
+                document.getElementById('tabManager').classList.toggle('bg-gray-200', type !== 'manager');
+            };
+            
+            window.addQuestion = (type) => {
+                const listId = type === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                const container = document.getElementById(listId);
+                const idx = container.children.length;
+                const newItem = document.createElement('div');
+                newItem.className = 'question-item flex items-center gap-2';
+                newItem.draggable = true;
+                newItem.dataset.index = idx;
+                newItem.dataset.type = type;
+                newItem.innerHTML = `<span class="drag-handle px-2"><i class="fas fa-grip-vertical text-gray-400"></i></span>
+                    <input type="text" value="New Question" class="flex-grow border rounded p-2 text-sm" data-qindex="${idx}" data-type="${type}">
+                    <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>`;
+                container.appendChild(newItem);
+                setupDragListeners(newItem);
+            };
+            
+            window.deleteQuestion = (type, idx) => {
+                if (!confirm('Delete this question?')) return;
+                const container = document.getElementById(type === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList');
+                const items = container.querySelectorAll('.question-item');
+                if (items.length <= 1) { showToast('Cannot delete the last question', true); return; }
+                items[idx].remove();
+                // Reindex
+                container.querySelectorAll('.question-item').forEach((item, newIdx) => {
+                    item.dataset.index = newIdx;
+                    const input = item.querySelector('input');
+                    input.dataset.qindex = newIdx;
+                    const btn = item.querySelector('button');
+                    btn.setAttribute('onclick', `deleteQuestion('${type}', ${newIdx})`);
+                });
+            };
+            
+            function setupDragAndDrop() {
+                document.querySelectorAll('.question-item').forEach(item => setupDragListeners(item));
+            }
+            function setupDragListeners(el) {
+                el.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: el.dataset.type, index: el.dataset.index }));
+                    el.classList.add('dragging');
+                });
+                el.addEventListener('dragend', (e) => { el.classList.remove('dragging'); });
+            }
+            window.handleDrop = (e, targetType) => {
+                e.preventDefault();
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                if (data.type !== targetType) return;
+                const container = document.getElementById(targetType === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList');
+                const items = [...container.querySelectorAll('.question-item')];
+                const dragIndex = parseInt(data.index);
+                const dropTarget = e.target.closest('.question-item');
+                if (!dropTarget) return;
+                const dropIndex = parseInt(dropTarget.dataset.index);
+                if (dragIndex === dropIndex) return;
+                // Reorder DOM
+                if (dragIndex < dropIndex) {
+                    dropTarget.parentNode.insertBefore(items[dragIndex], items[dropIndex].nextSibling);
+                } else {
+                    dropTarget.parentNode.insertBefore(items[dragIndex], items[dropIndex]);
+                }
+                // Reindex
+                container.querySelectorAll('.question-item').forEach((item, idx) => {
+                    item.dataset.index = idx;
+                    const input = item.querySelector('input');
+                    input.dataset.qindex = idx;
+                    const btn = item.querySelector('button');
+                    btn.setAttribute('onclick', `deleteQuestion('${targetType}', ${idx})`);
+                });
+            };
+            
+            window.saveQuestionsFromUI = () => {
+                const empInputs = document.querySelectorAll('#employeeQuestionsList input');
+                const mgrInputs = document.querySelectorAll('#managerQuestionsList input');
+                appSettings.employeeQuestions = [...empInputs].map(inp => inp.value.trim()).filter(v => v);
+                appSettings.managerQuestions = [...mgrInputs].map(inp => inp.value.trim()).filter(v => v);
+                saveSettings();
+                showToast('Questions saved');
+            };
+
             window.importUsersFromCSV = async () => { const file = document.getElementById('csvFileInput').files[0]; if(!file) return showToast('Select CSV',true); const reader = new FileReader(); reader.onload = async (e) => { const lines = e.target.result.split('\n').filter(l=>l.trim()); if(lines.length<2) return showToast('CSV must have header',true); const headers = lines[0].split(',').map(h=>h.trim().toLowerCase()); if(!['name','email','role','company'].every(r=>headers.includes(r))) return showToast('CSV must contain: Name, Email, Role, Company',true); let created=0,failed=0; for(let i=1;i<lines.length;i++){ const vals = lines[i].split(',').map(v=>v.trim()); if(vals.length<headers.length) continue; const rec = {}; headers.forEach((h,idx)=>rec[h]=vals[idx]); const pass = rec.password||'password123'; try { await createUser(rec.email,pass,rec.name,rec.company,rec.role); created++; } catch(err){ failed++; } } document.getElementById('importResult').innerHTML = `✅ Created: ${created}, ❌ Failed: ${failed}`; showToast(`Import: ${created} users`); }; reader.readAsText(file); };
             window.addCompany = () => { const div = document.createElement('div'); div.className='flex gap-2 mb-2'; div.innerHTML='<input type="text" class="company-input flex-grow border rounded p-2" placeholder="New Company"><button onclick="removeCompany(this)" class="bg-red-500 text-white px-3 rounded">X</button>'; document.getElementById('companiesList').appendChild(div); };
             window.removeCompany = (btn) => btn.parentElement.remove();
