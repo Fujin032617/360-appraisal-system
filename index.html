@@ -12,6 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
+        /* (styles unchanged) */
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: 600; }
         .company-badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
         .company-Nuebe { background: #dbeafe; color: #1e40af; }
@@ -123,7 +124,6 @@
                     if(d.exists) {
                         const data = d.data();
                         Object.assign(appSettings, data);
-                        // Ensure both question arrays exist
                         if (!appSettings.employeeQuestions) appSettings.employeeQuestions = [...appSettings.questions || []];
                         if (!appSettings.managerQuestions) appSettings.managerQuestions = [
                             "1. Strategic Thinking & Planning", "2. Team Leadership & Development", "3. Decision Making & Problem Solving",
@@ -132,21 +132,19 @@
                             "12. Resource Management", "13. Innovation & Creativity", "14. Stakeholder Management", "15. Ethical Conduct & Integrity"
                         ];
                     } else {
-                        // Initialize with defaults if not exists
                         await saveSettings();
                     }
                 } catch(e) { console.error('Settings load error', e); }
             }
             async function saveSettings() { await db.collection('settings').doc('appConfig').set(appSettings); showToast('Settings saved'); }
 
-            // Notifications with fallback
+            // Notifications
             async function fetchNotifications() {
                 if(!currentUser) return;
                 try {
                     const snap = await db.collection('notifications').where('userId','==',currentUser.uid).orderBy('createdAt','desc').limit(20).get();
                     notifications = snap.docs.map(d=>({id:d.id,...d.data()}));
                 } catch(e) {
-                    console.warn('Notification index missing, using fallback.');
                     const snap = await db.collection('notifications').where('userId','==',currentUser.uid).get();
                     notifications = snap.docs.map(d=>({id:d.id,...d.data()}));
                     notifications.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
@@ -178,12 +176,31 @@
             function confirmLogout() { if(confirm('Logout?')) logout(); }
 
             // Auth
-            async function initDemo() { const snap = await db.collection('users').get(); if(snap.empty) { const demos = [{name:"Admin",email:"admin@company.com",password:"password",role:"admin",company:"Nuebe"},{name:"Sarah HR",email:"sarah@nuebe.com",password:"password",role:"hr",company:"Nuebe"},{name:"David Mgr",email:"david@nuebe.com",password:"password",role:"manager",company:"Nuebe"},{name:"John Emp",email:"john@nuebe.com",password:"password",role:"employee",company:"Nuebe"},{name:"Mary Emp",email:"mary@1118.com",password:"password",role:"employee",company:"1118"},{name:"Peter Emp",email:"peter@kargo.com",password:"password",role:"employee",company:"Kargo"}]; for(const u of demos) { try { const cred = await auth.createUserWithEmailAndPassword(u.email,u.password); await db.collection('users').doc(cred.user.uid).set({name:u.name,email:u.email,role:u.role,company:u.company,createdAt:new Date().toISOString()}); } catch(e){} } } await loadSettings(); }
+            async function initDemo() {
+                const snap = await db.collection('users').get();
+                if(snap.empty) {
+                    const demos = [
+                        {name:"Admin",email:"admin@company.com",password:"password",role:"admin",company:"Nuebe"},
+                        {name:"Sarah HR",email:"sarah@nuebe.com",password:"password",role:"hr",company:"Nuebe"},
+                        {name:"David Mgr",email:"david@nuebe.com",password:"password",role:"manager",company:"Nuebe"},
+                        {name:"John Emp",email:"john@nuebe.com",password:"password",role:"employee",company:"Nuebe"},
+                        {name:"Mary Emp",email:"mary@1118.com",password:"password",role:"employee",company:"1118"},
+                        {name:"Peter Emp",email:"peter@kargo.com",password:"password",role:"employee",company:"Kargo"}
+                    ];
+                    for(const u of demos) {
+                        try {
+                            const cred = await auth.createUserWithEmailAndPassword(u.email,u.password);
+                            await db.collection('users').doc(cred.user.uid).set({name:u.name,email:u.email,role:u.role,company:u.company,createdAt:new Date().toISOString()});
+                        } catch(e){}
+                    }
+                }
+                await loadSettings();
+            }
             
-            // Create user with auto re-auth
+            // Create user with session password
             async function createUser(email, password, name, company, role) {
                 const adminEmail = currentUser.email;
-                const adminPassword = currentUser._password;
+                const adminPassword = currentUser._password || sessionStorage.getItem('adminPass');
                 if (!adminPassword) { showToast('Session expired. Please login again.', true); renderLogin(); return; }
                 showLoading();
                 try {
@@ -219,6 +236,7 @@
                         currentUserData = { id: doc.id, ...doc.data() };
                         currentUser = res.user;
                         currentUser._password = password;
+                        sessionStorage.setItem('adminPass', password);   // store for later use
                         await loadSettings();
                         await fetchNotifications();
                         showToast(`Welcome ${currentUserData.name}`);
@@ -226,18 +244,42 @@
                     } else { await auth.signOut(); showToast('Profile not found',true); }
                 } catch(e) { showToast(e.message,true); }
             }
-            function logout() { auth.signOut(); currentUser=null; currentUserData=null; renderLogin(); }
-            function renderLogin() { document.getElementById('app').innerHTML = `<div class="min-h-screen flex items-center justify-center p-4"><div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"><div class="text-center mb-6"><i class="fas fa-chalkboard-user text-5xl text-blue-500"></i><h1 class="text-2xl font-bold mt-2">360° Appraisal</h1></div><form id="loginForm"><input type="email" id="email" placeholder="Email" class="w-full border rounded-lg p-3 mb-3" required><input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required><button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button></form><div class="mt-4 text-center text-xs text-gray-400"></div></div></div>`; document.getElementById('loginForm').addEventListener('submit',(e)=>{ e.preventDefault(); login(document.getElementById('email').value,document.getElementById('password').value); }); }
+            function logout() {
+                auth.signOut();
+                sessionStorage.removeItem('adminPass');
+                currentUser=null; currentUserData=null;
+                renderLogin();
+            }
+            function renderLogin() { document.getElementById('app').innerHTML = `<div class="min-h-screen flex items-center justify-center p-4"><div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"><div class="text-center mb-6"><i class="fas fa-chalkboard-user text-5xl text-blue-500"></i><h1 class="text-2xl font-bold mt-2">360° Appraisal</h1></div><form id="loginForm"><input type="email" id="email" placeholder="Email" class="w-full border rounded-lg p-3 mb-3" required><input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required><button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button></form><div class="mt-4 text-center text-xs text-gray-400">Demo: admin@company.com / password</div></div></div>`; document.getElementById('loginForm').addEventListener('submit',(e)=>{ e.preventDefault(); login(document.getElementById('email').value,document.getElementById('password').value); }); }
 
             // User Directory
             async function renderUserDirectory() { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); const allR = await db.collection('ratings').get(); const scores = {}; allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; }); const users = allU.docs.map(d=>{ const data=d.data(); const sc = scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; }); let filtered = users; if(selectedCompanyFilter!=='all') filtered = users.filter(u=>u.company===selectedCompanyFilter); if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company); const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr'||currentUserData.role==='manager'); const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr'); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('users')}<div class="container mx-auto p-4 max-w-6xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-users"></i> User Directory</h1><div class="flex gap-2">${currentUserData.role==='admin'?`<select id="companyFilterUsers" class="border rounded p-2 text-sm" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}${canCreate?`<button onclick="showCreateUserModal()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-plus"></i> Add User</button>`:''}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${filtered.map(u=>`<div class="user-card bg-white rounded-2xl shadow p-4 border-l-4 ${u.role==='admin'?'border-purple-500':u.role==='hr'?'border-green-500':u.role==='manager'?'border-blue-500':'border-gray-400'}"><div class="flex justify-between items-start"><div><h3 class="font-bold text-lg">${u.name}</h3><p class="text-sm text-gray-500">${u.email}</p></div><span class="status-badge bg-gray-100 px-2 py-1 rounded text-xs">${u.role}</span></div><div class="mt-3 flex justify-between items-center"><div><span class="company-badge company-${u.company}">${u.company}</span></div><div class="text-right"><div class="text-2xl font-bold ${u.avgScore!=='N/A'&&u.avgScore>=4?'text-green-600':'text-blue-600'}">${u.avgScore}</div><div class="text-xs text-gray-400">${u.reviewCount} reviews</div></div></div><div class="mt-3 flex gap-2"><button onclick="viewUserDetails('${u.id}')" class="flex-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"><i class="fas fa-eye"></i> View</button>${canEdit&&u.id!==currentUser.uid?`<button onclick="editUser('${u.id}')" class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> Edit</button><button onclick="deleteUserAccount('${u.id}')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> Delete</button>`:''}</div></div>`).join('')}</div></div></div>`; }
-            window.deleteUserAccount = async (id) => { if(!confirm('Delete permanently?')) return; showLoading(); const rev = await db.collection('ratings').where('revieweeId','==',id).get(); const rat = await db.collection('ratings').where('raterId','==',id).get(); const batch = db.batch(); rev.forEach(d=>batch.delete(d.ref)); rat.forEach(d=>batch.delete(d.ref)); const hr = await db.collection('hrRecords').doc(id).get(); if(hr.exists) batch.delete(hr.ref); await db.collection('users').doc(id).delete(); await batch.commit(); showToast('Deleted'); renderUserDirectory(); };
-            window.editUser = async (id) => { const doc = await db.collection('users').doc(id).get(); const u = doc.data(); const modal = `<div class="modal" id="editUserModal"><div class="modal-content"><h2 class="text-xl font-bold mb-4">Edit ${u.name}</h2><form id="editUserForm"><input id="editName" value="${u.name}" class="w-full border rounded p-2 mb-3" required><input id="editEmail" value="${u.email}" class="w-full border rounded p-2 mb-3" required><select id="editCompany" class="w-full border rounded p-2 mb-3">${appSettings.companies.map(c=>`<option value="${c}" ${c===u.company?'selected':''}>${c}</option>`).join('')}</select><select id="editRole" class="w-full border rounded p-2 mb-4"><option value="employee" ${u.role==='employee'?'selected':''}>Employee</option><option value="manager" ${u.role==='manager'?'selected':''}>Manager</option><option value="hr" ${u.role==='hr'?'selected':''}>HR</option>${currentUserData.role==='admin'?`<option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>`:''}</select><input type="password" id="editPassword" placeholder="New password (optional)" class="w-full border rounded p-2 mb-4"><button type="submit" class="w-full bg-blue-600 text-white py-2 rounded">Update</button><button type="button" onclick="closeModal()" class="w-full mt-2 bg-gray-300 py-2 rounded">Cancel</button></form></div></div>`; document.getElementById('app').insertAdjacentHTML('beforeend',modal); document.getElementById('editUserForm').addEventListener('submit',async(e)=>{ e.preventDefault(); const name = document.getElementById('editName').value; const email = document.getElementById('editEmail').value; const comp = document.getElementById('editCompany').value; const role = document.getElementById('editRole').value; const pass = document.getElementById('editPassword').value; await db.collection('users').doc(id).update({name,email,company:comp,role,updatedAt:new Date().toISOString()}); if(pass && pass.length>=6) showToast('Password change simulated',false); showToast('Updated'); closeModal(); renderUserDirectory(); }); };
+            window.deleteUserAccount = async (id) => {
+                // Prevent deleting the only admin
+                const allAdmins = await db.collection('users').where('role','==','admin').get();
+                if (allAdmins.size === 1 && allAdmins.docs[0].id === id) {
+                    return showToast('Cannot delete the last admin account.', true);
+                }
+                if(!confirm('Delete this user and all associated data permanently?')) return;
+                showLoading();
+                const rev = await db.collection('ratings').where('revieweeId','==',id).get();
+                const rat = await db.collection('ratings').where('raterId','==',id).get();
+                const batch = db.batch();
+                rev.forEach(d=>batch.delete(d.ref));
+                rat.forEach(d=>batch.delete(d.ref));
+                const hr = await db.collection('hrRecords').doc(id).get();
+                if(hr.exists) batch.delete(hr.ref);
+                await db.collection('users').doc(id).delete();
+                await batch.commit();
+                showToast('Deleted');
+                renderUserDirectory();
+            };
+            window.editUser = async (id) => { const doc = await db.collection('users').doc(id).get(); const u = doc.data(); const modal = `<div class="modal" id="editUserModal"><div class="modal-content"><h2 class="text-xl font-bold mb-4">Edit ${u.name}</h2><form id="editUserForm"><input id="editName" value="${u.name}" class="w-full border rounded p-2 mb-3" required><input id="editEmail" value="${u.email}" class="w-full border rounded p-2 mb-3" required><select id="editCompany" class="w-full border rounded p-2 mb-3">${appSettings.companies.map(c=>`<option value="${c}" ${c===u.company?'selected':''}>${c}</option>`).join('')}</select><select id="editRole" class="w-full border rounded p-2 mb-4"><option value="employee" ${u.role==='employee'?'selected':''}>Employee</option><option value="manager" ${u.role==='manager'?'selected':''}>Manager</option><option value="hr" ${u.role==='hr'?'selected':''}>HR</option>${currentUserData.role==='admin'?`<option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>`:''}</select><input type="password" id="editPassword" placeholder="New password (optional)" class="w-full border rounded p-2 mb-4"><button type="submit" class="w-full bg-blue-600 text-white py-2 rounded">Update</button><button type="button" onclick="closeModal()" class="w-full mt-2 bg-gray-300 py-2 rounded">Cancel</button></form></div></div>`; document.getElementById('app').insertAdjacentHTML('beforeend',modal); document.getElementById('editUserForm').addEventListener('submit',async(e)=>{ e.preventDefault(); const name = document.getElementById('editName').value; const email = document.getElementById('editEmail').value; const comp = document.getElementById('editCompany').value; const role = document.getElementById('editRole').value; const pass = document.getElementById('editPassword').value; await db.collection('users').doc(id).update({name,email,company:comp,role,updatedAt:new Date().toISOString()}); if(pass && pass.length>=6) showToast('Password change simulated (requires Firebase Admin SDK)', false); showToast('Updated'); closeModal(); renderUserDirectory(); }); };
             window.applyUserCompanyFilter = (v) => { selectedCompanyFilter = v; renderUserDirectory(); };
             window.showCreateUserModal = () => { const m = `<div class="modal" id="createUserModal"><div class="modal-content"><h2 class="text-xl font-bold mb-4">Create User</h2><form id="createUserForm"><input id="newName" placeholder="Full Name" class="w-full border rounded p-2 mb-3" required><input id="newEmail" type="email" placeholder="Email" class="w-full border rounded p-2 mb-3" required><input id="newPassword" type="password" placeholder="Password (min 6)" class="w-full border rounded p-2 mb-3" required><select id="newCompany" class="w-full border rounded p-2 mb-3">${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select><select id="newRole" class="w-full border rounded p-2 mb-4"><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option></select><button type="submit" class="w-full bg-green-600 text-white py-2 rounded">Create</button><button type="button" onclick="closeModal()" class="w-full mt-2 bg-gray-300 py-2 rounded">Cancel</button></form></div></div>`; document.getElementById('app').insertAdjacentHTML('beforeend',m); document.getElementById('createUserForm').addEventListener('submit',async(e)=>{ e.preventDefault(); const email = document.getElementById('newEmail').value; const pass = document.getElementById('newPassword').value; const name = document.getElementById('newName').value; const comp = document.getElementById('newCompany').value; const role = document.getElementById('newRole').value; if(pass.length<6) return showToast('Password too short',true); closeModal(); await createUser(email,pass,name,comp,role); }); };
             window.closeModal = () => { document.querySelector('.modal')?.remove(); };
 
-            // Results Report (fixed to exclude users with no ratings)
+            // Results Report
             window.showResultsReport = async () => {
                 showLoading(); await fetchNotifications();
                 const allU = await db.collection('users').get();
@@ -279,13 +321,13 @@
             };
             window.exportResultsToCSV = async () => { showToast('CSV export ready (simulated)'); };
 
-            // User Details with Trends & PDF
+            // User Details
             window.viewUserDetails = async (userId) => { showLoading(); await fetchNotifications(); const uDoc = await db.collection('users').doc(userId).get(); const u = uDoc.data(); const ratings = await db.collection('ratings').where('revieweeId','==',userId).get(); const reviews = ratings.docs.map(d=>({id:d.id,...d.data()})); const avg = reviews.length ? (reviews.reduce((a,b)=>a+b.average,0)/reviews.length).toFixed(1) : 'N/A'; const last4 = getLastNQuarters(4); const qScores = []; for(const q of last4) { const qr = reviews.filter(r=>r.quarter===q); qScores.push(qr.length ? (qr.reduce((a,b)=>a+b.average,0)/qr.length*20).toFixed(1) : null); } const canDel = currentUserData.role==='admin'||currentUserData.role==='hr'; document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('users')}<div class="max-w-5xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">${u.name}</h1><div class="flex gap-2"><button onclick="exportUserPDF('${userId}')" class="bg-green-600 text-white px-4 py-2 rounded"><i class="fas fa-download"></i> PDF</button><button onclick="renderUserDirectory()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div></div><div class="bg-white rounded-2xl shadow p-6 mb-6"><div class="grid grid-cols-2 md:grid-cols-3 gap-4"><div><span class="font-bold">Email:</span> ${u.email}</div><div><span class="font-bold">Role:</span> ${u.role}</div><div><span class="font-bold">Company:</span> ${u.company}</div><div><span class="font-bold">Avg Score:</span> <span class="text-2xl font-bold">${avg}</span></div><div><span class="font-bold">Reviews:</span> ${reviews.length}</div></div></div><div class="bg-white rounded-2xl shadow p-6 mb-6"><h3 class="font-bold mb-4">📈 Trend (Last 4 Quarters)</h3><canvas id="trendChart" width="400" height="200"></canvas></div><h2 class="text-xl font-bold mb-4">Feedback</h2>${reviews.length ? reviews.map((r,i)=>`<div class="feedback-card bg-white rounded-2xl shadow mb-4 overflow-hidden"><div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 flex justify-between items-center cursor-pointer" onclick="toggleFeedback(${i})"><div><span class="font-semibold">${r.raterName}</span> <span class="text-xs">${r.quarter}</span></div><div class="flex items-center gap-4"><span class="bg-white text-blue-600 px-3 py-1 rounded-full">⭐ ${r.average}/5</span>${canDel?`<button onclick="event.stopPropagation(); deleteFeedback('${r.id}','${userId}')" class="text-white"><i class="fas fa-trash"></i></button>`:''}<i class="fas fa-chevron-down"></i></div></div><div class="hidden p-4 border-t" id="feedbackContent${i}"><p class="italic">"${r.comments||'No comments'}"</p><div class="mt-4 grid grid-cols-2 gap-2">${r.scores?Object.entries(r.scores).map(([q,s])=>`<div class="flex justify-between"><span>${q}</span><span class="font-bold">${s}/5</span></div>`).join(''):''}</div></div></div>`).join('') : '<p class="text-center py-8 text-gray-400">No feedback yet</p>'}</div></div>`; if(document.getElementById('trendChart')) new Chart(document.getElementById('trendChart').getContext('2d'), { type:'line', data:{ labels:last4, datasets:[{ label:'Score', data:qScores, borderColor:'rgb(59,130,246)', backgroundColor:'rgba(59,130,246,0.1)', tension:0.2, fill:true }] }, options:{ scales:{ y:{ beginAtZero:true, max:100 } } } }); };
             window.exportUserPDF = (id) => { const el = document.querySelector('.max-w-5xl').cloneNode(true); el.querySelectorAll('button').forEach(b=>b.remove()); html2pdf().set({ margin:0.5, filename:`performance_${id}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'in',format:'letter',orientation:'portrait'} }).from(el).save(); };
             window.deleteFeedback = async (fid, uid) => { if(confirm('Delete?')) { await db.collection('ratings').doc(fid).delete(); showToast('Deleted'); viewUserDetails(uid); } };
             window.toggleFeedback = (i) => { const c = document.getElementById(`feedbackContent${i}`); const icon = c.previousElementSibling.querySelector('.fa-chevron-down, .fa-chevron-up'); c.classList.toggle('hidden'); icon.classList.toggle('fa-chevron-down'); icon.classList.toggle('fa-chevron-up'); };
 
-            // Dashboard with quarter-specific pending evaluations
+            // Dashboard
             async function renderDashboard() {
                 showLoading(); await fetchNotifications();
                 const allU = await db.collection('users').get();
@@ -307,7 +349,6 @@
             window.applyCompanyFilter = (v) => { selectedCompanyFilter=v; renderDashboard(); };
             window.startEvaluation = async (rid, rname, rrole) => {
                 if(rid===currentUser.uid) return showToast('Cannot self-evaluate',true);
-                // Determine which question set to use based on reviewee role
                 let questionSet = appSettings.employeeQuestions;
                 if (rrole === 'manager' || rrole === 'hr') {
                     questionSet = appSettings.managerQuestions;
@@ -333,7 +374,7 @@
             function updateHrScoreDisplay(empId) { const late = parseInt(document.getElementById(`late-${empId}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${empId}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${empId}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${empId}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${empId}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${empId}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${empId}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); const span = document.getElementById(`score-${empId}`); if(span) span.innerText = score; }
             window.saveAllHrData = async () => { const allU = await db.collection('users').get(); const emps = allU.docs.filter(d=>d.data().role==='employee'); for(const e of emps) { const id = e.id; const late = parseInt(document.getElementById(`late-${id}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${id}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${id}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${id}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${id}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${id}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${id}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); await db.collection('hrRecords').doc(id).set({ late,npsl,npl,awol,warningA:wa,warningB:wb,warningC:wc,score,updatedAt:new Date().toISOString() }); } showToast('Saved'); showResultsReport(); };
             
-            // Admin Panel with Question Manager for Employee and Manager sets
+            // Admin Panel with Question Manager
             window.showAdminPanel = async () => {
                 await fetchNotifications();
                 const renderQuestionList = (type) => {
@@ -383,7 +424,7 @@
                 <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚖️ Weights</h2><div class="grid grid-cols-2 gap-4"><div><label>Operation Weight</label><input type="number" id="opWeight" step="0.05" value="${appSettings.operationWeight}" class="w-full border rounded p-2"></div><div><label>HR Weight</label><input type="number" id="hrWeight" step="0.05" value="${appSettings.hrWeight}" class="w-full border rounded p-2"></div></div><button onclick="saveWeights()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Weights</button></div>
                 <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📝 Deduction Points</h2><div class="grid grid-cols-2 gap-4"><div><label>Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" class="w-full border rounded p-2"></div><div><label>NPSL</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" class="w-full border rounded p-2"></div><div><label>NPL</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" class="w-full border rounded p-2"></div><div><label>AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" class="w-full border rounded p-2"></div><div><label>Type A</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" class="w-full border rounded p-2"></div><div><label>Type B</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" class="w-full border rounded p-2"></div><div><label>Type C</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" class="w-full border rounded p-2"></div></div><button onclick="saveDeductions()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Deductions</button></div>
                 <!-- System Actions -->
-                <div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Data</button></div></div></div>`;
+                <div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Ratings</button><p class="text-xs text-gray-500 mt-2">Reset only deletes ratings & HR records. Users remain.</p></div></div></div>`;
                 setupDragAndDrop();
             };
             
@@ -420,7 +461,6 @@
                 const items = container.querySelectorAll('.question-item');
                 if (items.length <= 1) { showToast('Cannot delete the last question', true); return; }
                 items[idx].remove();
-                // Reindex
                 container.querySelectorAll('.question-item').forEach((item, newIdx) => {
                     item.dataset.index = newIdx;
                     const input = item.querySelector('input');
@@ -451,13 +491,11 @@
                 if (!dropTarget) return;
                 const dropIndex = parseInt(dropTarget.dataset.index);
                 if (dragIndex === dropIndex) return;
-                // Reorder DOM
                 if (dragIndex < dropIndex) {
                     dropTarget.parentNode.insertBefore(items[dragIndex], items[dropIndex].nextSibling);
                 } else {
                     dropTarget.parentNode.insertBefore(items[dragIndex], items[dropIndex]);
                 }
-                // Reindex
                 container.querySelectorAll('.question-item').forEach((item, idx) => {
                     item.dataset.index = idx;
                     const input = item.querySelector('input');
@@ -483,7 +521,16 @@
             window.saveWeights = () => { appSettings.operationWeight = parseFloat(document.getElementById('opWeight').value); appSettings.hrWeight = parseFloat(document.getElementById('hrWeight').value); saveSettings(); showToast('Weights saved'); };
             window.saveDeductions = () => { appSettings.deductions = { late: parseInt(document.getElementById('ded_late').value), npsl: parseInt(document.getElementById('ded_npsl').value), npl: parseInt(document.getElementById('ded_npl').value), awol: parseInt(document.getElementById('ded_awol').value), warningA: parseInt(document.getElementById('ded_warningA').value), warningB: parseInt(document.getElementById('ded_warningB').value), warningC: parseInt(document.getElementById('ded_warningC').value) }; saveSettings(); showToast('Deductions saved'); };
             window.exportSystemData = async () => { showToast('Export ready (simulated)'); };
-            window.resetSystemData = async () => { if(confirm('Delete all ratings?')) { const ratings = await db.collection('ratings').get(); ratings.forEach(d=>d.ref.delete()); showToast('Data reset'); renderDashboard(); } };
+            window.resetSystemData = async () => {
+                if(confirm('⚠️ This will delete ALL ratings and HR records. Users will NOT be deleted. Continue?')) {
+                    const ratings = await db.collection('ratings').get();
+                    ratings.forEach(d=>d.ref.delete());
+                    const hr = await db.collection('hrRecords').get();
+                    hr.forEach(d=>d.ref.delete());
+                    showToast('Ratings and HR data reset');
+                    renderDashboard();
+                }
+            };
 
             // Expose
             window.renderDashboard = renderDashboard;
