@@ -12,7 +12,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
-        /* (styles unchanged) */
         .status-badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: 600; }
         .company-badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
         .company-Nuebe { background: #dbeafe; color: #1e40af; }
@@ -172,7 +171,25 @@
             window.handleNotificationClick = async function(id, link) { await markRead(id); if(link&&link!=='#') { if(link==='myresults') viewMyResults(); else if(link.startsWith('user/')) viewUserDetails(link.split('/')[1]); else renderDashboard(); } toggleNotificationDropdown(); };
 
             // Navbar
-            function renderNavbar(active='home') { const hrAdmin = currentUserData.role==='hr'||currentUserData.role==='admin'; const adm = currentUserData.role==='admin'; return `<nav class="bg-white shadow px-4 py-3 flex flex-wrap justify-between items-center sticky top-0 z-50"><div class="flex items-center gap-2"><i class="fas fa-chalkboard-user text-blue-600 text-xl"></i><span class="font-bold">360° Appraisal</span><span class="text-xs bg-gray-200 px-2 py-1 rounded">${currentUserData.role}</span><span class="company-badge company-${currentUserData.company}">${currentUserData.company}</span></div><div class="flex gap-2 flex-wrap items-center"><button onclick="renderDashboard()" class="px-3 py-1 ${active==='home'?'bg-blue-100 rounded':''}">Home</button><button onclick="viewMyResults()" class="px-3 py-1 ${active==='myresults'?'bg-blue-100 rounded':''}">My Results</button><button onclick="renderUserDirectory()" class="px-3 py-1 ${active==='users'?'bg-blue-100 rounded':''}">Users</button>${hrAdmin?`<button onclick="showResultsReport()" class="px-3 py-1 ${active==='report'?'bg-indigo-100 rounded':''}"><i class="fas fa-chart-bar"></i> Report</button>`:''}${hrAdmin?`<button onclick="showHrInputPage()" class="px-3 py-1 ${active==='hrinput'?'bg-green-100 rounded':''}">HR Input</button>`:''}${hrAdmin?`<button onclick="showAllFeedback()" class="px-3 py-1 ${active==='feedback'?'bg-purple-100 rounded':''}">Feedback</button>`:''}${adm?`<button onclick="showAdminPanel()" class="px-3 py-1 bg-blue-600 text-white rounded">Admin</button>`:''}<div class="relative ml-2"><button onclick="toggleNotificationDropdown()" class="relative p-2 hover:bg-gray-100 rounded-full"><i class="fas fa-bell text-gray-600"></i><span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" style="display:${unreadNotificationCount>0?'flex':'none'}">${unreadNotificationCount}</span></button><div id="notificationDropdown" class="notification-dropdown hidden"><div class="p-3 border-b font-semibold">Notifications</div><div id="notificationList"></div></div></div><button onclick="confirmLogout()" class="px-3 py-1 bg-red-100 text-red-600 rounded">Logout</button></div></nav>`; }
+            function renderNavbar(active='home') {
+                const hrAdmin = currentUserData.role==='hr'||currentUserData.role==='admin';
+                const adm = currentUserData.role==='admin';
+                return `<nav class="bg-white shadow px-4 py-3 flex flex-wrap justify-between items-center sticky top-0 z-50">
+                    <div class="flex items-center gap-2"><i class="fas fa-chalkboard-user text-blue-600 text-xl"></i><span class="font-bold">360° Appraisal</span><span class="text-xs bg-gray-200 px-2 py-1 rounded">${currentUserData.role}</span><span class="company-badge company-${currentUserData.company}">${currentUserData.company}</span></div>
+                    <div class="flex gap-2 flex-wrap items-center">
+                        <button onclick="renderDashboard()" class="px-3 py-1 ${active==='home'?'bg-blue-100 rounded':''}">Home</button>
+                        <button onclick="viewMyResults()" class="px-3 py-1 ${active==='myresults'?'bg-blue-100 rounded':''}">My Results</button>
+                        <button onclick="renderUserDirectory()" class="px-3 py-1 ${active==='users'?'bg-blue-100 rounded':''}">Users</button>
+                        ${hrAdmin?`<button onclick="showResultsReport()" class="px-3 py-1 ${active==='report'?'bg-indigo-100 rounded':''}"><i class="fas fa-chart-bar"></i> Report</button>`:''}
+                        ${hrAdmin?`<button onclick="showHrInputPage()" class="px-3 py-1 ${active==='hrinput'?'bg-green-100 rounded':''}">HR Input</button>`:''}
+                        ${hrAdmin?`<button onclick="showAllFeedback()" class="px-3 py-1 ${active==='feedback'?'bg-purple-100 rounded':''}">Feedback</button>`:''}
+                        ${hrAdmin?`<button onclick="showQuestionManager()" class="px-3 py-1 bg-purple-100 rounded"><i class="fas fa-list-check"></i> Questions</button>`:''}
+                        ${adm?`<button onclick="showAdminPanel()" class="px-3 py-1 bg-blue-600 text-white rounded">Admin</button>`:''}
+                        <div class="relative ml-2"><button onclick="toggleNotificationDropdown()" class="relative p-2 hover:bg-gray-100 rounded-full"><i class="fas fa-bell text-gray-600"></i><span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" style="display:${unreadNotificationCount>0?'flex':'none'}">${unreadNotificationCount}</span></button><div id="notificationDropdown" class="notification-dropdown hidden"><div class="p-3 border-b font-semibold">Notifications</div><div id="notificationList"></div></div></div>
+                        <button onclick="confirmLogout()" class="px-3 py-1 bg-red-100 text-red-600 rounded">Logout</button>
+                    </div>
+                </nav>`;
+            }
             function confirmLogout() { if(confirm('Logout?')) logout(); }
 
             // Auth
@@ -236,7 +253,7 @@
                         currentUserData = { id: doc.id, ...doc.data() };
                         currentUser = res.user;
                         currentUser._password = password;
-                        sessionStorage.setItem('adminPass', password);   // store for later use
+                        sessionStorage.setItem('adminPass', password);
                         await loadSettings();
                         await fetchNotifications();
                         showToast(`Welcome ${currentUserData.name}`);
@@ -250,16 +267,13 @@
                 currentUser=null; currentUserData=null;
                 renderLogin();
             }
-            function renderLogin() { document.getElementById('app').innerHTML = `<div class="min-h-screen flex items-center justify-center p-4"><div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"><div class="text-center mb-6"><i class="fas fa-chalkboard-user text-5xl text-blue-500"></i><h1 class="text-2xl font-bold mt-2">360° Appraisal</h1></div><form id="loginForm"><input type="email" id="email" placeholder="Email" class="w-full border rounded-lg p-3 mb-3" required><input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required><button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button></form><div class="mt-4 text-center text-xs text-gray-400"></div></div></div>`; document.getElementById('loginForm').addEventListener('submit',(e)=>{ e.preventDefault(); login(document.getElementById('email').value,document.getElementById('password').value); }); }
+            function renderLogin() { document.getElementById('app').innerHTML = `<div class="min-h-screen flex items-center justify-center p-4"><div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"><div class="text-center mb-6"><i class="fas fa-chalkboard-user text-5xl text-blue-500"></i><h1 class="text-2xl font-bold mt-2">360° Appraisal</h1></div><form id="loginForm"><input type="email" id="email" placeholder="Email" class="w-full border rounded-lg p-3 mb-3" required><input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required><button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button></form><div class="mt-4 text-center text-xs text-gray-400">Demo: admin@company.com / password</div></div></div>`; document.getElementById('loginForm').addEventListener('submit',(e)=>{ e.preventDefault(); login(document.getElementById('email').value,document.getElementById('password').value); }); }
 
             // User Directory
             async function renderUserDirectory() { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); const allR = await db.collection('ratings').get(); const scores = {}; allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; }); const users = allU.docs.map(d=>{ const data=d.data(); const sc = scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; }); let filtered = users; if(selectedCompanyFilter!=='all') filtered = users.filter(u=>u.company===selectedCompanyFilter); if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company); const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr'||currentUserData.role==='manager'); const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr'); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('users')}<div class="container mx-auto p-4 max-w-6xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-users"></i> User Directory</h1><div class="flex gap-2">${currentUserData.role==='admin'?`<select id="companyFilterUsers" class="border rounded p-2 text-sm" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}${canCreate?`<button onclick="showCreateUserModal()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-plus"></i> Add User</button>`:''}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${filtered.map(u=>`<div class="user-card bg-white rounded-2xl shadow p-4 border-l-4 ${u.role==='admin'?'border-purple-500':u.role==='hr'?'border-green-500':u.role==='manager'?'border-blue-500':'border-gray-400'}"><div class="flex justify-between items-start"><div><h3 class="font-bold text-lg">${u.name}</h3><p class="text-sm text-gray-500">${u.email}</p></div><span class="status-badge bg-gray-100 px-2 py-1 rounded text-xs">${u.role}</span></div><div class="mt-3 flex justify-between items-center"><div><span class="company-badge company-${u.company}">${u.company}</span></div><div class="text-right"><div class="text-2xl font-bold ${u.avgScore!=='N/A'&&u.avgScore>=4?'text-green-600':'text-blue-600'}">${u.avgScore}</div><div class="text-xs text-gray-400">${u.reviewCount} reviews</div></div></div><div class="mt-3 flex gap-2"><button onclick="viewUserDetails('${u.id}')" class="flex-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"><i class="fas fa-eye"></i> View</button>${canEdit&&u.id!==currentUser.uid?`<button onclick="editUser('${u.id}')" class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> Edit</button><button onclick="deleteUserAccount('${u.id}')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> Delete</button>`:''}</div></div>`).join('')}</div></div></div>`; }
             window.deleteUserAccount = async (id) => {
-                // Prevent deleting the only admin
                 const allAdmins = await db.collection('users').where('role','==','admin').get();
-                if (allAdmins.size === 1 && allAdmins.docs[0].id === id) {
-                    return showToast('Cannot delete the last admin account.', true);
-                }
+                if (allAdmins.size === 1 && allAdmins.docs[0].id === id) return showToast('Cannot delete the last admin account.', true);
                 if(!confirm('Delete this user and all associated data permanently?')) return;
                 showLoading();
                 const rev = await db.collection('ratings').where('revieweeId','==',id).get();
@@ -374,8 +388,8 @@
             function updateHrScoreDisplay(empId) { const late = parseInt(document.getElementById(`late-${empId}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${empId}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${empId}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${empId}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${empId}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${empId}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${empId}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); const span = document.getElementById(`score-${empId}`); if(span) span.innerText = score; }
             window.saveAllHrData = async () => { const allU = await db.collection('users').get(); const emps = allU.docs.filter(d=>d.data().role==='employee'); for(const e of emps) { const id = e.id; const late = parseInt(document.getElementById(`late-${id}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${id}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${id}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${id}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${id}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${id}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${id}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); await db.collection('hrRecords').doc(id).set({ late,npsl,npl,awol,warningA:wa,warningB:wb,warningC:wc,score,updatedAt:new Date().toISOString() }); } showToast('Saved'); showResultsReport(); };
             
-            // Admin Panel with Question Manager
-            window.showAdminPanel = async () => {
+            // ==================== QUESTION MANAGER (HR & Admin) ====================
+            window.showQuestionManager = async () => {
                 await fetchNotifications();
                 const renderQuestionList = (type) => {
                     const questions = type === 'employee' ? appSettings.employeeQuestions : appSettings.managerQuestions;
@@ -387,47 +401,49 @@
                         </div>
                     `).join('');
                 };
-                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('admin')}<div class="max-w-5xl mx-auto"><h1 class="text-2xl font-bold mb-4">⚙️ Admin Control Panel</h1>
-                <!-- Question Manager -->
-                <div class="bg-white rounded-2xl shadow p-6 mb-6">
-                    <h2 class="text-xl font-bold mb-4"><i class="fas fa-list-check mr-2"></i>Evaluation Questions</h2>
-                    <div class="flex gap-4 mb-4">
-                        <button id="tabEmployee" class="px-4 py-2 rounded-t-lg bg-blue-600 text-white" onclick="switchQuestionTab('employee')">Employee Questions</button>
-                        <button id="tabManager" class="px-4 py-2 rounded-t-lg bg-gray-200" onclick="switchQuestionTab('manager')">Manager Questions</button>
+                document.getElementById('app').innerHTML = `
+                    <div class="min-h-screen bg-gray-100 p-4">
+                        ${renderNavbar('questions')}
+                        <div class="max-w-4xl mx-auto">
+                            <div class="flex justify-between items-center mb-4">
+                                <h1 class="text-2xl font-bold"><i class="fas fa-list-check mr-2"></i>Evaluation Questions Manager</h1>
+                                <button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button>
+                            </div>
+                            <div class="bg-white rounded-2xl shadow p-6">
+                                <div class="flex gap-4 mb-6">
+                                    <button id="tabEmployee" class="px-4 py-2 rounded-t-lg bg-blue-600 text-white" onclick="switchQuestionTab('employee')">Employee Questions</button>
+                                    <button id="tabManager" class="px-4 py-2 rounded-t-lg bg-gray-200" onclick="switchQuestionTab('manager')">Manager Questions</button>
+                                </div>
+                                <div id="employeeQuestionsPanel">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <h3 class="font-semibold text-lg">Employee Evaluation Questions</h3>
+                                        <button onclick="addQuestion('employee')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add Question</button>
+                                    </div>
+                                    <div id="employeeQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'employee')">
+                                        ${renderQuestionList('employee')}
+                                    </div>
+                                </div>
+                                <div id="managerQuestionsPanel" class="hidden">
+                                    <div class="flex justify-between items-center mb-3">
+                                        <h3 class="font-semibold text-lg">Manager Evaluation Questions</h3>
+                                        <button onclick="addQuestion('manager')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add Question</button>
+                                    </div>
+                                    <div id="managerQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'manager')">
+                                        ${renderQuestionList('manager')}
+                                    </div>
+                                </div>
+                                <div class="mt-6 flex gap-3">
+                                    <button onclick="saveQuestionsFromUI()" class="bg-blue-600 text-white px-6 py-2 rounded"><i class="fas fa-save"></i> Save Changes</button>
+                                    <button onclick="renderDashboard()" class="bg-gray-300 text-gray-700 px-6 py-2 rounded">Cancel</button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-3">Drag the handle (<i class="fas fa-grip-vertical"></i>) to reorder questions. Click Save to apply changes.</p>
+                            </div>
+                        </div>
                     </div>
-                    <div id="employeeQuestionsPanel">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="font-semibold">Employee Evaluation Questions</h3>
-                            <button onclick="addQuestion('employee')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add</button>
-                        </div>
-                        <div id="employeeQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'employee')">
-                            ${renderQuestionList('employee')}
-                        </div>
-                    </div>
-                    <div id="managerQuestionsPanel" class="hidden">
-                        <div class="flex justify-between items-center mb-2">
-                            <h3 class="font-semibold">Manager Evaluation Questions</h3>
-                            <button onclick="addQuestion('manager')" class="bg-green-500 text-white px-3 py-1 rounded text-sm"><i class="fas fa-plus"></i> Add</button>
-                        </div>
-                        <div id="managerQuestionsList" class="space-y-1" ondragover="event.preventDefault()" ondrop="handleDrop(event, 'manager')">
-                            ${renderQuestionList('manager')}
-                        </div>
-                    </div>
-                    <button onclick="saveQuestionsFromUI()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Questions</button>
-                    <p class="text-xs text-gray-500 mt-2">Drag items to reorder. Changes apply after save.</p>
-                </div>
-                <!-- Bulk Import -->
-                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📤 Bulk Import Users (CSV)</h2><p class="text-sm mb-3">CSV columns: Name, Email, Role, Company, Password (optional)</p><input type="file" id="csvFileInput" accept=".csv" class="mb-3"><button onclick="importUsersFromCSV()" class="bg-blue-600 text-white px-4 py-2 rounded">Import Users</button><div id="importResult" class="mt-3 text-sm"></div></div>
-                <!-- Companies -->
-                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏢 Companies</h2><div id="companiesList">${appSettings.companies.map(c=>`<div class="flex gap-2 mb-2"><input type="text" value="${c}" class="company-input flex-grow border rounded p-2"><button onclick="removeCompany(this)" class="bg-red-500 text-white px-3 rounded">X</button></div>`).join('')}</div><button onclick="addCompany()" class="bg-green-600 text-white px-4 py-2 rounded mt-2">+ Add Company</button><button onclick="saveCompanies()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2 ml-2">Save Companies</button></div>
-                <!-- Weights & Deductions -->
-                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚖️ Weights</h2><div class="grid grid-cols-2 gap-4"><div><label>Operation Weight</label><input type="number" id="opWeight" step="0.05" value="${appSettings.operationWeight}" class="w-full border rounded p-2"></div><div><label>HR Weight</label><input type="number" id="hrWeight" step="0.05" value="${appSettings.hrWeight}" class="w-full border rounded p-2"></div></div><button onclick="saveWeights()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Weights</button></div>
-                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📝 Deduction Points</h2><div class="grid grid-cols-2 gap-4"><div><label>Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" class="w-full border rounded p-2"></div><div><label>NPSL</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" class="w-full border rounded p-2"></div><div><label>NPL</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" class="w-full border rounded p-2"></div><div><label>AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" class="w-full border rounded p-2"></div><div><label>Type A</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" class="w-full border rounded p-2"></div><div><label>Type B</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" class="w-full border rounded p-2"></div><div><label>Type C</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" class="w-full border rounded p-2"></div></div><button onclick="saveDeductions()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Deductions</button></div>
-                <!-- System Actions -->
-                <div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Ratings</button><p class="text-xs text-gray-500 mt-2">Reset only deletes ratings & HR records. Users remain.</p></div></div></div>`;
+                `;
                 setupDragAndDrop();
             };
-            
+
             window.switchQuestionTab = (type) => {
                 document.getElementById('employeeQuestionsPanel').classList.toggle('hidden', type !== 'employee');
                 document.getElementById('managerQuestionsPanel').classList.toggle('hidden', type !== 'manager');
@@ -511,7 +527,18 @@
                 appSettings.employeeQuestions = [...empInputs].map(inp => inp.value.trim()).filter(v => v);
                 appSettings.managerQuestions = [...mgrInputs].map(inp => inp.value.trim()).filter(v => v);
                 saveSettings();
-                showToast('Questions saved');
+                showToast('Questions saved successfully!');
+            };
+
+            // Admin Panel (Admin only)
+            window.showAdminPanel = async () => {
+                await fetchNotifications();
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('admin')}<div class="max-w-5xl mx-auto"><h1 class="text-2xl font-bold mb-4">⚙️ Admin Control Panel</h1>
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📤 Bulk Import Users (CSV)</h2><p class="text-sm mb-3">CSV columns: Name, Email, Role, Company, Password (optional)</p><input type="file" id="csvFileInput" accept=".csv" class="mb-3"><button onclick="importUsersFromCSV()" class="bg-blue-600 text-white px-4 py-2 rounded">Import Users</button><div id="importResult" class="mt-3 text-sm"></div></div>
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">🏢 Companies</h2><div id="companiesList">${appSettings.companies.map(c=>`<div class="flex gap-2 mb-2"><input type="text" value="${c}" class="company-input flex-grow border rounded p-2"><button onclick="removeCompany(this)" class="bg-red-500 text-white px-3 rounded">X</button></div>`).join('')}</div><button onclick="addCompany()" class="bg-green-600 text-white px-4 py-2 rounded mt-2">+ Add Company</button><button onclick="saveCompanies()" class="bg-blue-600 text-white px-4 py-2 rounded mt-2 ml-2">Save Companies</button></div>
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">⚖️ Weights</h2><div class="grid grid-cols-2 gap-4"><div><label>Operation Weight</label><input type="number" id="opWeight" step="0.05" value="${appSettings.operationWeight}" class="w-full border rounded p-2"></div><div><label>HR Weight</label><input type="number" id="hrWeight" step="0.05" value="${appSettings.hrWeight}" class="w-full border rounded p-2"></div></div><button onclick="saveWeights()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Weights</button></div>
+                <div class="bg-white rounded-2xl shadow p-6 mb-6"><h2 class="text-xl font-bold mb-4">📝 Deduction Points</h2><div class="grid grid-cols-2 gap-4"><div><label>Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" class="w-full border rounded p-2"></div><div><label>NPSL</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" class="w-full border rounded p-2"></div><div><label>NPL</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" class="w-full border rounded p-2"></div><div><label>AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" class="w-full border rounded p-2"></div><div><label>Type A</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" class="w-full border rounded p-2"></div><div><label>Type B</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" class="w-full border rounded p-2"></div><div><label>Type C</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" class="w-full border rounded p-2"></div></div><button onclick="saveDeductions()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded">Save Deductions</button></div>
+                <div class="bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-4">📊 System Actions</h2><button onclick="exportSystemData()" class="bg-green-600 text-white px-4 py-2 rounded mr-2"><i class="fas fa-download"></i> Export All Data</button><button onclick="resetSystemData()" class="bg-red-600 text-white px-4 py-2 rounded"><i class="fas fa-trash"></i> Reset Ratings</button><p class="text-xs text-gray-500 mt-2">Reset only deletes ratings & HR records. Users remain.</p></div></div></div>`;
             };
 
             window.importUsersFromCSV = async () => { const file = document.getElementById('csvFileInput').files[0]; if(!file) return showToast('Select CSV',true); const reader = new FileReader(); reader.onload = async (e) => { const lines = e.target.result.split('\n').filter(l=>l.trim()); if(lines.length<2) return showToast('CSV must have header',true); const headers = lines[0].split(',').map(h=>h.trim().toLowerCase()); if(!['name','email','role','company'].every(r=>headers.includes(r))) return showToast('CSV must contain: Name, Email, Role, Company',true); let created=0,failed=0; for(let i=1;i<lines.length;i++){ const vals = lines[i].split(',').map(v=>v.trim()); if(vals.length<headers.length) continue; const rec = {}; headers.forEach((h,idx)=>rec[h]=vals[idx]); const pass = rec.password||'password123'; try { await createUser(rec.email,pass,rec.name,rec.company,rec.role); created++; } catch(err){ failed++; } } document.getElementById('importResult').innerHTML = `✅ Created: ${created}, ❌ Failed: ${failed}`; showToast(`Import: ${created} users`); }; reader.readAsText(file); };
@@ -539,6 +566,7 @@
             window.showResultsReport = showResultsReport;
             window.showHrInputPage = showHrInputPage;
             window.showAllFeedback = showAllFeedback;
+            window.showQuestionManager = showQuestionManager;
             window.showAdminPanel = showAdminPanel;
             window.viewUserDetails = viewUserDetails;
             window.startEvaluation = startEvaluation;
