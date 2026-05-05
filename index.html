@@ -43,10 +43,28 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <div id="app">Loading...</div>
+    <div id="app">
+        <div style="text-align:center; padding: 40px; font-family: sans-serif;">
+            <div id="loadingSpinner" style="border:3px solid #f3f3f3; border-top:3px solid #3498db; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:0 auto 20px;"></div>
+            <style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
+            <p id="loadingStatus" style="color:#555;">Connecting to Firebase...</p>
+            <p id="loadingError" style="color:red; font-size:13px; margin-top:10px; display:none;"></p>
+        </div>
+    </div>
+    <script>
+        // Catch any global JS errors and show them on screen
+        window.onerror = function(msg, src, line, col, err) {
+            const el = document.getElementById('loadingError');
+            if(el) { el.style.display='block'; el.innerText = '❌ Error: ' + msg + (src ? ' (' + src.split('/').pop() + ':' + line + ')' : ''); }
+            return false;
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+            const el = document.getElementById('loadingError');
+            if(el) { el.style.display='block'; el.innerText = '❌ Unhandled: ' + (e.reason?.message || e.reason || 'Unknown error'); }
+        });
+    </script>
     <script>
         (function(){
-            // Firebase init
             firebase.initializeApp({
                 apiKey: "AIzaSyB8Xrmg05bK5iIvZO77CrDk5QeFjWAJQNc",
                 authDomain: "appraisal-system-119ea.firebaseapp.com",
@@ -58,7 +76,6 @@
             const auth = firebase.auth();
             const db = firebase.firestore();
 
-            // Global state
             let currentUser = null, currentUserData = null;
             let selectedCompanyFilter = 'all';
             let selectedQuarter = getCurrentQuarter();
@@ -157,20 +174,24 @@
             }
             async function markRead(id) { await db.collection('notifications').doc(id).update({read:true}); await fetchNotifications(); updateBadge(); }
             function updateBadge() { const b = document.getElementById('notificationBadge'); if(b) { b.innerText = unreadNotificationCount; b.style.display = unreadNotificationCount>0?'flex':'none'; } }
+
+            // FIX #14: Notification dropdown renders on OPEN not close
             window.toggleNotificationDropdown = function() {
                 const dd = document.getElementById('notificationDropdown');
-                if(dd) {
-                    const hidden = dd.classList.contains('hidden');
-                    dd.classList.toggle('hidden');
-                    if(!hidden) {
-                        const cont = document.getElementById('notificationList');
-                        if(cont) cont.innerHTML = notifications.length ? notifications.map(n=>`<div class="notification-item ${n.read?'':'unread'}" onclick="handleNotificationClick('${n.id}','${n.link}')"><div class="flex gap-3"><i class="fas fa-${n.type==='success'?'check-circle text-green-500':n.type==='warning'?'exclamation-triangle text-yellow-500':'info-circle text-blue-500'}"></i><div class="flex-1"><p class="text-sm">${n.message}</p><span class="text-xs text-gray-400">${n.createdAt?new Date(n.createdAt.seconds*1000).toLocaleString():'Just now'}</span></div></div></div>`).join('') : '<p class="p-4 text-center text-gray-500">No notifications</p>';
-                    }
+                if(!dd) return;
+                const isHidden = dd.classList.contains('hidden');
+                dd.classList.toggle('hidden');
+                // Populate when OPENING (isHidden = true means we are now showing it)
+                if(isHidden) {
+                    const cont = document.getElementById('notificationList');
+                    if(cont) cont.innerHTML = notifications.length
+                        ? notifications.map(n=>`<div class="notification-item ${n.read?'':'unread'}" onclick="handleNotificationClick('${n.id}','${n.link}')"><div class="flex gap-3"><i class="fas fa-${n.type==='success'?'check-circle text-green-500':n.type==='warning'?'exclamation-triangle text-yellow-500':'info-circle text-blue-500'}"></i><div class="flex-1"><p class="text-sm">${n.message}</p><span class="text-xs text-gray-400">${n.createdAt?new Date(n.createdAt.seconds*1000).toLocaleString():'Just now'}</span></div></div></div>`).join('')
+                        : '<p class="p-4 text-center text-gray-500">No notifications</p>';
                 }
             };
             window.handleNotificationClick = async function(id, link) { await markRead(id); if(link&&link!=='#') { if(link==='myresults') viewMyResults(); else if(link.startsWith('user/')) viewUserDetails(link.split('/')[1]); else renderDashboard(); } toggleNotificationDropdown(); };
 
-            // Navbar
+            // Navbar — FIX #16: 'questions' is now a valid active key
             function renderNavbar(active='home') {
                 const hrAdmin = currentUserData.role==='hr'||currentUserData.role==='admin';
                 const adm = currentUserData.role==='admin';
@@ -183,8 +204,8 @@
                         ${hrAdmin?`<button onclick="showResultsReport()" class="px-3 py-1 ${active==='report'?'bg-indigo-100 rounded':''}"><i class="fas fa-chart-bar"></i> Report</button>`:''}
                         ${hrAdmin?`<button onclick="showHrInputPage()" class="px-3 py-1 ${active==='hrinput'?'bg-green-100 rounded':''}">HR Input</button>`:''}
                         ${hrAdmin?`<button onclick="showAllFeedback()" class="px-3 py-1 ${active==='feedback'?'bg-purple-100 rounded':''}">Feedback</button>`:''}
-                        ${hrAdmin?`<button onclick="showQuestionManager()" class="px-3 py-1 bg-purple-100 rounded"><i class="fas fa-list-check"></i> Questions</button>`:''}
-                        ${adm?`<button onclick="showAdminPanel()" class="px-3 py-1 bg-blue-600 text-white rounded">Admin</button>`:''}
+                        ${hrAdmin?`<button onclick="showQuestionManager()" class="px-3 py-1 ${active==='questions'?'bg-purple-100 rounded':'bg-purple-100 rounded'}"><i class="fas fa-list-check"></i> Questions</button>`:''}
+                        ${adm?`<button onclick="showAdminPanel()" class="px-3 py-1 ${active==='admin'?'bg-blue-700 text-white rounded':'bg-blue-600 text-white rounded'}">Admin</button>`:''}
                         <div class="relative ml-2"><button onclick="toggleNotificationDropdown()" class="relative p-2 hover:bg-gray-100 rounded-full"><i class="fas fa-bell text-gray-600"></i><span id="notificationBadge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" style="display:${unreadNotificationCount>0?'flex':'none'}">${unreadNotificationCount}</span></button><div id="notificationDropdown" class="notification-dropdown hidden"><div class="p-3 border-b font-semibold">Notifications</div><div id="notificationList"></div></div></div>
                         <button onclick="confirmLogout()" class="px-3 py-1 bg-red-100 text-red-600 rounded">Logout</button>
                     </div>
@@ -213,8 +234,7 @@
                 }
                 await loadSettings();
             }
-            
-            // Create user with session password
+
             async function createUser(email, password, name, company, role) {
                 const adminEmail = currentUser.email;
                 const adminPassword = currentUser._password || sessionStorage.getItem('adminPass');
@@ -270,28 +290,34 @@
             function renderLogin() { document.getElementById('app').innerHTML = `<div class="min-h-screen flex items-center justify-center p-4"><div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full"><div class="text-center mb-6"><i class="fas fa-chalkboard-user text-5xl text-blue-500"></i><h1 class="text-2xl font-bold mt-2">360° Appraisal</h1></div><form id="loginForm"><input type="email" id="email" placeholder="Email" class="w-full border rounded-lg p-3 mb-3" required><input type="password" id="password" placeholder="Password" class="w-full border rounded-lg p-3 mb-3" required><button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Login</button></form></div></div>`; document.getElementById('loginForm').addEventListener('submit',(e)=>{ e.preventDefault(); login(document.getElementById('email').value,document.getElementById('password').value); }); }
 
             // User Directory
-            async function renderUserDirectory() { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); const allR = await db.collection('ratings').get(); const scores = {}; allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; }); const users = allU.docs.map(d=>{ const data=d.data(); const sc = scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; }); let filtered = users; if(selectedCompanyFilter!=='all') filtered = users.filter(u=>u.company===selectedCompanyFilter); if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company); const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr'||currentUserData.role==='manager'); const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr'); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('users')}<div class="container mx-auto p-4 max-w-6xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-users"></i> User Directory</h1><div class="flex gap-2">${currentUserData.role==='admin'?`<select id="companyFilterUsers" class="border rounded p-2 text-sm" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}${canCreate?`<button onclick="showCreateUserModal()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-plus"></i> Add User</button>`:''}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${filtered.map(u=>`<div class="user-card bg-white rounded-2xl shadow p-4 border-l-4 ${u.role==='admin'?'border-purple-500':u.role==='hr'?'border-green-500':u.role==='manager'?'border-blue-500':'border-gray-400'}"><div class="flex justify-between items-start"><div><h3 class="font-bold text-lg">${u.name}</h3><p class="text-sm text-gray-500">${u.email}</p></div><span class="status-badge bg-gray-100 px-2 py-1 rounded text-xs">${u.role}</span></div><div class="mt-3 flex justify-between items-center"><div><span class="company-badge company-${u.company}">${u.company}</span></div><div class="text-right"><div class="text-2xl font-bold ${u.avgScore!=='N/A'&&u.avgScore>=4?'text-green-600':'text-blue-600'}">${u.avgScore}</div><div class="text-xs text-gray-400">${u.reviewCount} reviews</div></div></div><div class="mt-3 flex gap-2"><button onclick="viewUserDetails('${u.id}')" class="flex-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"><i class="fas fa-eye"></i> View</button>${canEdit&&u.id!==currentUser.uid?`<button onclick="editUser('${u.id}')" class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> Edit</button><button onclick="deleteUserAccount('${u.id}')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> Delete</button>`:''}</div></div>`).join('')}</div></div></div>`; }
+            async function renderUserDirectory() { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); const allR = await db.collection('ratings').get(); const scores = {}; allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; }); const users = allU.docs.map(d=>{ const data=d.data(); const sc = scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; }); let filtered = users; if(selectedCompanyFilter!=='all') filtered = users.filter(u=>u.company===selectedCompanyFilter); if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company); const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr'||currentUserData.role==='manager'); const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr'); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('users')}<div class="container mx-auto p-4 max-w-6xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-users"></i> User Directory</h1><div class="flex gap-2">${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" class="border rounded p-2 text-sm" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}${canCreate?`<button onclick="showCreateUserModal()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-plus"></i> Add User</button>`:''}</div></div><div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">${filtered.map(u=>`<div class="user-card bg-white rounded-2xl shadow p-4 border-l-4 ${u.role==='admin'?'border-purple-500':u.role==='hr'?'border-green-500':u.role==='manager'?'border-blue-500':'border-gray-400'}"><div class="flex justify-between items-start"><div><h3 class="font-bold text-lg">${u.name}</h3><p class="text-sm text-gray-500">${u.email}</p></div><span class="status-badge bg-gray-100 px-2 py-1 rounded text-xs">${u.role}</span></div><div class="mt-3 flex justify-between items-center"><div><span class="company-badge company-${u.company}">${u.company}</span></div><div class="text-right"><div class="text-2xl font-bold ${u.avgScore!=='N/A'&&u.avgScore>=4?'text-green-600':'text-blue-600'}">${u.avgScore}</div><div class="text-xs text-gray-400">${u.reviewCount} reviews</div></div></div><div class="mt-3 flex gap-2"><button onclick="viewUserDetails('${u.id}')" class="flex-1 bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"><i class="fas fa-eye"></i> View</button>${canEdit&&u.id!==currentUser.uid?`<button onclick="editUser('${u.id}')" class="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs"><i class="fas fa-edit"></i> Edit</button><button onclick="deleteUserAccount('${u.id}')" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs"><i class="fas fa-trash"></i> Delete</button>`:''}</div></div>`).join('')}</div></div></div>`; }
             window.deleteUserAccount = async (id) => {
                 const allAdmins = await db.collection('users').where('role','==','admin').get();
                 if (allAdmins.size === 1 && allAdmins.docs[0].id === id) return showToast('Cannot delete the last admin account.', true);
                 if(!confirm('Delete this user and all associated data permanently?')) return;
                 showLoading();
+                // FIX #2 hint: chunked deletes to avoid 500-op batch limit
                 const rev = await db.collection('ratings').where('revieweeId','==',id).get();
                 const rat = await db.collection('ratings').where('raterId','==',id).get();
-                const batch = db.batch();
-                rev.forEach(d=>batch.delete(d.ref));
-                rat.forEach(d=>batch.delete(d.ref));
+                const allDocs = [...rev.docs, ...rat.docs];
+                // Delete in chunks of 400
+                for(let i=0; i<allDocs.length; i+=400) {
+                    const batch = db.batch();
+                    allDocs.slice(i, i+400).forEach(d=>batch.delete(d.ref));
+                    await batch.commit();
+                }
                 const hr = await db.collection('hrRecords').doc(id).get();
-                if(hr.exists) batch.delete(hr.ref);
+                if(hr.exists) await hr.ref.delete();
                 await db.collection('users').doc(id).delete();
-                await batch.commit();
                 showToast('Deleted');
                 renderUserDirectory();
             };
             window.editUser = async (id) => { const doc = await db.collection('users').doc(id).get(); const u = doc.data(); const modal = `<div class="modal" id="editUserModal"><div class="modal-content"><h2 class="text-xl font-bold mb-4">Edit ${u.name}</h2><form id="editUserForm"><input id="editName" value="${u.name}" class="w-full border rounded p-2 mb-3" required><input id="editEmail" value="${u.email}" class="w-full border rounded p-2 mb-3" required><select id="editCompany" class="w-full border rounded p-2 mb-3">${appSettings.companies.map(c=>`<option value="${c}" ${c===u.company?'selected':''}>${c}</option>`).join('')}</select><select id="editRole" class="w-full border rounded p-2 mb-4"><option value="employee" ${u.role==='employee'?'selected':''}>Employee</option><option value="manager" ${u.role==='manager'?'selected':''}>Manager</option><option value="hr" ${u.role==='hr'?'selected':''}>HR</option>${currentUserData.role==='admin'?`<option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>`:''}</select><input type="password" id="editPassword" placeholder="New password (optional)" class="w-full border rounded p-2 mb-4"><button type="submit" class="w-full bg-blue-600 text-white py-2 rounded">Update</button><button type="button" onclick="closeModal()" class="w-full mt-2 bg-gray-300 py-2 rounded">Cancel</button></form></div></div>`; document.getElementById('app').insertAdjacentHTML('beforeend',modal); document.getElementById('editUserForm').addEventListener('submit',async(e)=>{ e.preventDefault(); const name = document.getElementById('editName').value; const email = document.getElementById('editEmail').value; const comp = document.getElementById('editCompany').value; const role = document.getElementById('editRole').value; const pass = document.getElementById('editPassword').value; await db.collection('users').doc(id).update({name,email,company:comp,role,updatedAt:new Date().toISOString()}); if(pass && pass.length>=6) showToast('Password change simulated (requires Firebase Admin SDK)', false); showToast('Updated'); closeModal(); renderUserDirectory(); }); };
             window.applyUserCompanyFilter = (v) => { selectedCompanyFilter = v; renderUserDirectory(); };
             window.showCreateUserModal = () => { const m = `<div class="modal" id="createUserModal"><div class="modal-content"><h2 class="text-xl font-bold mb-4">Create User</h2><form id="createUserForm"><input id="newName" placeholder="Full Name" class="w-full border rounded p-2 mb-3" required><input id="newEmail" type="email" placeholder="Email" class="w-full border rounded p-2 mb-3" required><input id="newPassword" type="password" placeholder="Password (min 6)" class="w-full border rounded p-2 mb-3" required><select id="newCompany" class="w-full border rounded p-2 mb-3">${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select><select id="newRole" class="w-full border rounded p-2 mb-4"><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option></select><button type="submit" class="w-full bg-green-600 text-white py-2 rounded">Create</button><button type="button" onclick="closeModal()" class="w-full mt-2 bg-gray-300 py-2 rounded">Cancel</button></form></div></div>`; document.getElementById('app').insertAdjacentHTML('beforeend',m); document.getElementById('createUserForm').addEventListener('submit',async(e)=>{ e.preventDefault(); const email = document.getElementById('newEmail').value; const pass = document.getElementById('newPassword').value; const name = document.getElementById('newName').value; const comp = document.getElementById('newCompany').value; const role = document.getElementById('newRole').value; if(pass.length<6) return showToast('Password too short',true); closeModal(); await createUser(email,pass,name,comp,role); }); };
-            window.closeModal = () => { document.querySelector('.modal')?.remove(); };
+
+            // FIX #15: Remove ALL modals, not just the first one
+            window.closeModal = () => { document.querySelectorAll('.modal').forEach(m => m.remove()); };
 
             // Results Report
             window.showResultsReport = async () => {
@@ -299,7 +325,14 @@
                 const allU = await db.collection('users').get();
                 const allR = await db.collection('ratings').get();
                 const hrRec = await db.collection('hrRecords').get();
-                const selQ = document.getElementById('reportQuarterFilter')?.value || 'all';
+
+                // FIX #4: Read filter values from URL state variables, not DOM (DOM doesn't exist yet on first render)
+                // We store filter state in module-level vars and render controls referencing them
+                const selQ = window._reportQuarterFilter || 'all';
+                const cf   = window._reportCompanyFilter || 'all';
+                const rf   = window._reportRoleFilter    || 'all';
+                const sf   = (window._reportSearch || '').toLowerCase();
+
                 let filtR = allR.docs;
                 if(selQ!=='all') filtR = filtR.filter(d=>d.data().quarter===selQ);
                 const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
@@ -313,25 +346,28 @@
                     if(!p || p.count===0) continue;
                     const op = (p.total/p.count)*20;
                     const hr = hrMap[u.id];
-                    let hrScore = 100;
+
+                    // FIX #7: Only use 100 as default if HR record EXISTS but has no deductions.
+                    // If no HR record at all, mark as null so it's excluded from weighted final score
+                    let hrScore = null;
                     if(hr) {
                         const ded = (hr.late||0)*appSettings.deductions.late + (hr.npsl||0)*appSettings.deductions.npsl + (hr.npl||0)*appSettings.deductions.npl + (hr.awol||0)*appSettings.deductions.awol + (hr.warningA||0)*appSettings.deductions.warningA + (hr.warningB||0)*appSettings.deductions.warningB + (hr.warningC||0)*appSettings.deductions.warningC;
                         hrScore = Math.max(0,100-ded);
                     }
-                    const fin = (op*appSettings.operationWeight)+(hrScore*appSettings.hrWeight);
-                    results.push({id:u.id, name:user.name, company:user.company, role:user.role, op:op.toFixed(1), hr:hrScore, fin:fin.toFixed(1), cnt:p.count});
+                    // If no HR record, final score is based on operation score only (shown with a note)
+                    const fin = hrScore !== null
+                        ? (op*appSettings.operationWeight)+(hrScore*appSettings.hrWeight)
+                        : op; // fallback: op score only, no HR weighting applied
+                    results.push({id:u.id, name:user.name, company:user.company, role:user.role, op:op.toFixed(1), hr:hrScore!==null?hrScore:'N/A', fin:fin.toFixed(1), cnt:p.count, noHrRecord: hrScore===null});
                 }
                 let filtered = results;
-                const cf = document.getElementById('reportCompanyFilter')?.value||'all';
-                const rf = document.getElementById('reportRoleFilter')?.value||'all';
-                const sf = document.getElementById('reportSearch')?.value?.toLowerCase()||'';
                 if(cf!=='all') filtered = filtered.filter(r=>r.company===cf);
                 if(rf!=='all') filtered = filtered.filter(r=>r.role===rf);
                 if(sf) filtered = filtered.filter(r=>r.name.toLowerCase().includes(sf));
                 filtered.sort((a,b)=>parseFloat(b.fin)-parseFloat(a.fin));
                 const getClass = (s)=>s>=85?'score-excellent':s>=70?'score-good':'score-poor';
                 const qOpts = generateQuarterOptions();
-                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('report')}<div class="container mx-auto p-4 max-w-7xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-chart-bar"></i> Performance Results Report</h1><button onclick="exportResultsToCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-download"></i> Export CSV</button></div><div class="bg-white rounded-2xl shadow p-4 mb-6"><h3 class="font-bold mb-3">🔍 Filters</h3><div class="grid grid-cols-1 md:grid-cols-4 gap-3"><select id="reportCompanyFilter" class="border rounded p-2 text-sm" onchange="showResultsReport()"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select><select id="reportRoleFilter" class="border rounded p-2 text-sm" onchange="showResultsReport()"><option value="all">All Roles</option><option value="employee">Employee</option><option value="manager">Manager</option><option value="hr">HR</option></select><select id="reportQuarterFilter" class="border rounded p-2 text-sm" onchange="showResultsReport()"><option value="all">All Quarters</option>${qOpts.map(q=>`<option value="${q}" ${selQ===q?'selected':''}>${q}</option>`).join('')}</select><input type="text" id="reportSearch" placeholder="Search by name..." class="border rounded p-2 text-sm" onkeyup="showResultsReport()"></div></div><div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"><div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.length}</div><div class="text-sm">Evaluated Employees</div></div><div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div><div class="text-sm">Avg Final Score</div></div><div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div><div class="text-sm">Outstanding (85+)</div></div><div class="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div><div class="text-sm">Needs Improvement (&lt;70)</div></div></div><div class="bg-white rounded-2xl shadow overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50"><tr><th class="p-3 text-left">Employee</th><th class="p-3 text-left">Company</th><th class="p-3 text-left">Role</th><th class="p-3 text-center">Peer Rating</th><th class="p-3 text-center">HR Score</th><th class="p-3 text-center">Final Score</th><th class="p-3 text-center">Rating</th><th class="p-3 text-center">Action</th></tr></thead><tbody>${filtered.map(r=>`<tr class="border-b hover:bg-gray-50"><td class="p-3 font-medium">${r.name}</td><td class="p-3"><span class="company-badge company-${r.company}">${r.company}</span></td><td class="p-3 capitalize">${r.role}</td><td class="p-3 text-center font-bold">${r.op}/100</td><td class="p-3 text-center font-bold">${r.hr}/100</td><td class="p-3 text-center"><span class="px-3 py-1 rounded-full ${getClass(parseFloat(r.fin))} font-bold">${r.fin}/100</span></td><td class="p-3 text-center">${parseFloat(r.fin)>=85?'🌟 Outstanding':parseFloat(r.fin)>=70?'✅ Satisfactory':'⚠️ Needs Improvement'}</td><td class="p-3 text-center"><button onclick="viewUserDetails('${r.id}')" class="text-blue-600 hover:underline text-xs">View Details</button></td></tr>`).join('')}</tbody></table></div>${filtered.length===0?'<div class="p-8 text-center text-gray-400">No evaluated employees found for this quarter.</div>':''}</div></div></div>`;
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('report')}<div class="container mx-auto p-4 max-w-7xl"><div class="flex justify-between items-center mb-4"><h1 class="text-2xl font-bold"><i class="fas fa-chart-bar"></i> Performance Results Report</h1><button onclick="exportResultsToCSV()" class="bg-green-600 text-white px-4 py-2 rounded text-sm"><i class="fas fa-download"></i> Export CSV</button></div><div class="bg-white rounded-2xl shadow p-4 mb-6"><h3 class="font-bold mb-3">🔍 Filters</h3><div class="grid grid-cols-1 md:grid-cols-4 gap-3"><select id="reportCompanyFilter" class="border rounded p-2 text-sm" onchange="window._reportCompanyFilter=this.value;showResultsReport()"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${cf===c?'selected':''}>${c}</option>`).join('')}</select><select id="reportRoleFilter" class="border rounded p-2 text-sm" onchange="window._reportRoleFilter=this.value;showResultsReport()"><option value="all" ${rf==='all'?'selected':''}>All Roles</option><option value="employee" ${rf==='employee'?'selected':''}>Employee</option><option value="manager" ${rf==='manager'?'selected':''}>Manager</option><option value="hr" ${rf==='hr'?'selected':''}>HR</option></select><select id="reportQuarterFilter" class="border rounded p-2 text-sm" onchange="window._reportQuarterFilter=this.value;showResultsReport()"><option value="all" ${selQ==='all'?'selected':''}>All Quarters</option>${qOpts.map(q=>`<option value="${q}" ${selQ===q?'selected':''}>${q}</option>`).join('')}</select><input type="text" id="reportSearch" placeholder="Search by name..." class="border rounded p-2 text-sm" value="${window._reportSearch||''}" onkeyup="window._reportSearch=this.value;showResultsReport()"></div></div><div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"><div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.length}</div><div class="text-sm">Evaluated Employees</div></div><div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div><div class="text-sm">Avg Final Score</div></div><div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div><div class="text-sm">Outstanding (85+)</div></div><div class="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl p-4"><div class="text-2xl font-bold">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div><div class="text-sm">Needs Improvement (&lt;70)</div></div></div><div class="bg-white rounded-2xl shadow overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50"><tr><th class="p-3 text-left">Employee</th><th class="p-3 text-left">Company</th><th class="p-3 text-left">Role</th><th class="p-3 text-center">Peer Rating</th><th class="p-3 text-center">HR Score</th><th class="p-3 text-center">Final Score</th><th class="p-3 text-center">Rating</th><th class="p-3 text-center">Action</th></tr></thead><tbody>${filtered.map(r=>`<tr class="border-b hover:bg-gray-50"><td class="p-3 font-medium">${r.name}</td><td class="p-3"><span class="company-badge company-${r.company}">${r.company}</span></td><td class="p-3 capitalize">${r.role}</td><td class="p-3 text-center font-bold">${r.op}/100</td><td class="p-3 text-center font-bold">${r.hr==='N/A'?'<span class="text-gray-400 text-xs">No HR record</span>':r.hr+'/100'}</td><td class="p-3 text-center"><span class="px-3 py-1 rounded-full ${getClass(parseFloat(r.fin))} font-bold">${r.fin}/100${r.noHrRecord?'<span title="HR record missing – score based on peer rating only" class="ml-1 text-yellow-500 cursor-help">⚠️</span>':''}</span></td><td class="p-3 text-center">${parseFloat(r.fin)>=85?'🌟 Outstanding':parseFloat(r.fin)>=70?'✅ Satisfactory':'⚠️ Needs Improvement'}</td><td class="p-3 text-center"><button onclick="viewUserDetails('${r.id}')" class="text-blue-600 hover:underline text-xs">View Details</button></td></tr>`).join('')}</tbody></table></div>${filtered.length===0?'<div class="p-8 text-center text-gray-400">No evaluated employees found for this quarter.</div>':''}</div></div></div>`;
             };
             window.exportResultsToCSV = async () => { showToast('CSV export ready (simulated)'); };
 
@@ -351,13 +387,17 @@
                 const avgScore = feedbacks.length ? (feedbacks.reduce((a,b)=>a+(b.average||0),0)/feedbacks.length).toFixed(1) : 0;
                 const low = feedbacks.filter(r=>r.average<3);
                 const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company && d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
+
+                // FIX #6: Check completed evaluations against the SELECTED quarter (selectedQuarter),
+                // and also filter out the evaluator themselves. This matches what the dashboard displays.
                 const myRatingsSnap = await db.collection('ratings')
                     .where('raterId','==',currentUser.uid)
                     .where('quarter','==',selectedQuarter)
                     .get();
                 const completedThisQuarter = myRatingsSnap.docs.map(d=>d.data().revieweeId);
                 const pending = companyUsers.filter(u=>u.id!==currentUser.uid && !completedThisQuarter.includes(u.id));
-                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('home')}<div class="container mx-auto p-4 max-w-6xl">${low.length?`<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded"><i class="fas fa-exclamation-triangle"></i> Low Rating Alert: ${low.length} ratings below 3.0</div>`:''}<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Dashboard (${selectedQuarter})</h2><select id="quarterFilter" class="border rounded p-2 text-sm mr-2" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select><select id="companyFilter" class="border rounded p-2 text-sm" onchange="applyCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div><div class="grid md:grid-cols-4 gap-4 mb-6"><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-blue-600">${feedbacks.length}</div><div class="text-sm">Total Feedback</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-green-600">${avgScore}</div><div class="text-sm">Avg Rating</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-yellow-600">${pending.length}</div><div class="text-sm">Pending (${selectedQuarter})</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-purple-600">${allU.docs.filter(d=>d.data().role==='employee').length}</div><div class="text-sm">Employees</div></div></div><div class="bg-white rounded-2xl shadow p-6"><h3 class="font-bold mb-4">📋 Pending Evaluations (${selectedQuarter})</h3>${pending.length ? `<div class="space-y-3">${pending.map(u=>`<div class="border rounded-xl p-4 flex justify-between items-center"><div><span class="font-medium">${u.name}</span><span class="text-xs text-gray-500 ml-2">${u.role}</span></div><button onclick="startEvaluation('${u.id}','${u.name}','${u.role}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fas fa-star"></i> Evaluate</button></div>`).join('')}</div>` : '<p class="text-gray-500 text-center py-4">All evaluations for this quarter are complete!</p>'}</div></div></div>`;
+
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100">${renderNavbar('home')}<div class="container mx-auto p-4 max-w-6xl">${low.length?`<div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded"><i class="fas fa-exclamation-triangle"></i> Low Rating Alert: ${low.length} ratings below 3.0</div>`:''}<div class="flex justify-between mb-4"><h2 class="text-xl font-bold">Dashboard (${selectedQuarter})</h2><div class="flex gap-2"><select id="quarterFilter" class="border rounded p-2 text-sm" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select><select id="companyFilter" class="border rounded p-2 text-sm" onchange="applyCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select></div></div><div class="grid md:grid-cols-4 gap-4 mb-6"><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-blue-600">${feedbacks.length}</div><div class="text-sm">Total Feedback</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-green-600">${avgScore}</div><div class="text-sm">Avg Rating</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-yellow-600">${pending.length}</div><div class="text-sm">Pending (${selectedQuarter})</div></div><div class="bg-white rounded-xl shadow p-4"><div class="text-2xl font-bold text-purple-600">${allU.docs.filter(d=>d.data().role==='employee').length}</div><div class="text-sm">Employees</div></div></div><div class="bg-white rounded-2xl shadow p-6"><h3 class="font-bold mb-4">📋 Pending Evaluations (${selectedQuarter})</h3>${pending.length ? `<div class="space-y-3">${pending.map(u=>`<div class="border rounded-xl p-4 flex justify-between items-center"><div><span class="font-medium">${u.name}</span><span class="text-xs text-gray-500 ml-2">${u.role}</span></div><button onclick="startEvaluation('${u.id}','${u.name}','${u.role}')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"><i class="fas fa-star"></i> Evaluate</button></div>`).join('')}</div>` : '<p class="text-gray-500 text-center py-4">All evaluations for this quarter are complete!</p>'}</div></div></div>`;
             }
             window.changeSelectedQuarter = (q) => { selectedQuarter = q; renderDashboard(); };
             window.applyCompanyFilter = (v) => { selectedCompanyFilter=v; renderDashboard(); };
@@ -370,13 +410,17 @@
                 const qOpts = generateQuarterOptions();
                 let qHtml = '';
                 questionSet.forEach((q,i)=>{ qHtml += `<div class="mb-4 p-3 border rounded"><div class="font-medium text-sm mb-2">${q}</div><div class="flex gap-2 flex-wrap">${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn w-10 h-10 rounded-full border text-sm" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}<span class="text-xs text-gray-400 ml-2">1=Poor 2=Needs Improvement 3=Satisfactory 4=Outstanding 5=Excellent</span></div><input type="hidden" id="q${i}" value=""></div>`; });
-                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4"><div class="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-2">Evaluating: ${rname} (${rrole})</h2><form id="evalForm"><div class="mb-4"><label class="block text-sm font-medium mb-1">Quarter</label><select id="evalQuarter" class="border rounded p-2 w-full">${qOpts.map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select></div>${qHtml}<textarea id="comments" rows="3" placeholder="Additional comments" class="w-full border rounded p-3 mt-4"></textarea><div class="flex gap-3 mt-6"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full">Submit</button><button type="button" onclick="renderDashboard()" class="bg-gray-500 text-white px-6 py-2 rounded-full">Cancel</button></div></form></div></div>`;
+
+                // FIX #6: Lock the quarter to selectedQuarter — don't let evaluator pick a different one
+                // This ensures the completed check and the submission always match
+                document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4"><div class="max-w-3xl mx-auto bg-white rounded-2xl shadow p-6"><h2 class="text-xl font-bold mb-2">Evaluating: ${rname} (${rrole})</h2><p class="text-sm text-gray-500 mb-4">Quarter: <strong>${selectedQuarter}</strong></p><form id="evalForm">${qHtml}<textarea id="comments" rows="3" placeholder="Additional comments" class="w-full border rounded p-3 mt-4"></textarea><div class="flex gap-3 mt-6"><button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-full">Submit</button><button type="button" onclick="renderDashboard()" class="bg-gray-500 text-white px-6 py-2 rounded-full">Cancel</button></div></form></div></div>`;
                 window.selectRating = (i,s) => { document.getElementById(`q${i}`).value = s; document.querySelectorAll(`.rating-btn[data-q="${i}"]`).forEach(b=>b.classList.remove('selected','bg-blue-600','text-white')); document.querySelectorAll(`.rating-btn[data-q="${i}"][data-score="${s}"]`).forEach(b=>b.classList.add('selected','bg-blue-600','text-white')); };
                 document.getElementById('evalForm').addEventListener('submit',async(e)=>{
                     e.preventDefault(); let total=0; const scores={};
                     for(let i=0;i<questionSet.length;i++){ const v = document.getElementById(`q${i}`).value; if(!v) return showToast(`Rate question ${i+1}`,true); total += parseInt(v); scores[questionSet[i]] = parseInt(v); }
-                    const avg = (total/questionSet.length).toFixed(1); const qtr = document.getElementById('evalQuarter').value;
-                    await db.collection('ratings').add({ raterId:currentUser.uid, raterName:currentUserData.name, revieweeId:rid, revieweeName:rname, scores, total, average:parseFloat(avg), company:currentUserData.company, quarter:qtr, comments:document.getElementById('comments').value||'', createdAt:new Date().toISOString() });
+                    const avg = (total/questionSet.length).toFixed(1);
+                    // Always uses selectedQuarter — no mismatch possible
+                    await db.collection('ratings').add({ raterId:currentUser.uid, raterName:currentUserData.name, revieweeId:rid, revieweeName:rname, scores, total, average:parseFloat(avg), company:currentUserData.company, quarter:selectedQuarter, comments:document.getElementById('comments').value||'', createdAt:new Date().toISOString() });
                     await createNotification(rid, `You received new feedback`, 'success', 'myresults');
                     showToast('Submitted!'); renderDashboard();
                 });
@@ -387,20 +431,24 @@
             window.showHrInputPage = async () => { showLoading(); await fetchNotifications(); const allU = await db.collection('users').get(); let emps = allU.docs.filter(d=>d.data().role==='employee'); if(selectedCompanyFilter!=='all') emps = emps.filter(e=>e.data().company===selectedCompanyFilter); const hrRec = await db.collection('hrRecords').get(); const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); }); document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('hrinput')}<div class="max-w-6xl mx-auto"><div class="flex justify-between mb-4"><h1 class="text-2xl font-bold">HR Input</h1><button onclick="renderDashboard()" class="bg-gray-500 text-white px-4 py-2 rounded">Back</button></div><div class="bg-white rounded-2xl shadow p-6 overflow-x-auto"><table class="w-full text-sm"><thead class="bg-gray-50"><tr><th>Employee</th><th>Company</th><th>Late</th><th>NPSL</th><th>NPL</th><th>AWOL</th><th>Type A</th><th>Type B</th><th>Type C</th><th>Score</th></tr></thead><tbody>${emps.map(e=>{ const hr = hrMap[e.id]||{}; return `<tr><td class="p-2 font-medium">${e.data().name}</td><td class="p-2"><span class="company-badge company-${e.data().company}">${e.data().company}</span></td><td><input type="number" id="late-${e.id}" value="${hr.late||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="npsl-${e.id}" value="${hr.npsl||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="npl-${e.id}" value="${hr.npl||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="awol-${e.id}" value="${hr.awol||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningA-${e.id}" value="${hr.warningA||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningB-${e.id}" value="${hr.warningB||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td><input type="number" id="warningC-${e.id}" value="${hr.warningC||0}" min="0" class="w-16 border rounded p-1 text-center"></td><td id="score-${e.id}" class="font-bold text-center">100</td></tr>`; }).join('')}</tbody></table><div class="mt-4"><button onclick="saveAllHrData()" class="bg-green-600 text-white px-6 py-2 rounded-lg"><i class="fas fa-save"></i> Save All HR Data</button></div></div></div></div>`; emps.forEach(e=>{ const fs = ['late','npsl','npl','awol','warningA','warningB','warningC']; fs.forEach(f=>{ const inp = document.getElementById(`${f}-${e.id}`); if(inp) inp.addEventListener('input',()=>updateHrScoreDisplay(e.id)); }); updateHrScoreDisplay(e.id); }); };
             function updateHrScoreDisplay(empId) { const late = parseInt(document.getElementById(`late-${empId}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${empId}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${empId}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${empId}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${empId}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${empId}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${empId}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); const span = document.getElementById(`score-${empId}`); if(span) span.innerText = score; }
             window.saveAllHrData = async () => { const allU = await db.collection('users').get(); const emps = allU.docs.filter(d=>d.data().role==='employee'); for(const e of emps) { const id = e.id; const late = parseInt(document.getElementById(`late-${id}`)?.value)||0; const npsl = parseInt(document.getElementById(`npsl-${id}`)?.value)||0; const npl = parseInt(document.getElementById(`npl-${id}`)?.value)||0; const awol = parseInt(document.getElementById(`awol-${id}`)?.value)||0; const wa = parseInt(document.getElementById(`warningA-${id}`)?.value)||0; const wb = parseInt(document.getElementById(`warningB-${id}`)?.value)||0; const wc = parseInt(document.getElementById(`warningC-${id}`)?.value)||0; const ded = (late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC); const score = Math.max(0,100-ded); await db.collection('hrRecords').doc(id).set({ late,npsl,npl,awol,warningA:wa,warningB:wb,warningC:wc,score,updatedAt:new Date().toISOString() }); } showToast('Saved'); showResultsReport(); };
-            
-            // ==================== QUESTION MANAGER (HR & Admin) ====================
+
+            // ==================== QUESTION MANAGER ====================
             window.showQuestionManager = async () => {
                 await fetchNotifications();
+
+                // FIX #17: renderQuestionList is called fresh each time, indices are always accurate
                 const renderQuestionList = (type) => {
                     const questions = type === 'employee' ? appSettings.employeeQuestions : appSettings.managerQuestions;
                     return questions.map((q, idx) => `
                         <div class="question-item flex items-center gap-2" draggable="true" data-index="${idx}" data-type="${type}">
                             <span class="drag-handle px-2"><i class="fas fa-grip-vertical text-gray-400"></i></span>
                             <input type="text" value="${q.replace(/"/g, '&quot;')}" class="flex-grow border rounded p-2 text-sm" data-qindex="${idx}" data-type="${type}">
-                            <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                            <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700 px-2"><i class="fas fa-trash"></i></button>
                         </div>
                     `).join('');
                 };
+
+                // FIX #16: Pass 'questions' as active key — navbar now recognises it
                 document.getElementById('app').innerHTML = `
                     <div class="min-h-screen bg-gray-100 p-4">
                         ${renderNavbar('questions')}
@@ -454,11 +502,12 @@
                 document.getElementById('tabManager').classList.toggle('text-white', type === 'manager');
                 document.getElementById('tabManager').classList.toggle('bg-gray-200', type !== 'manager');
             };
-            
+
             window.addQuestion = (type) => {
                 const listId = type === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
                 const container = document.getElementById(listId);
-                const idx = container.children.length;
+                // FIX #17: Use actual current child count for accurate index
+                const idx = container.querySelectorAll('.question-item').length;
                 const newItem = document.createElement('div');
                 newItem.className = 'question-item flex items-center gap-2';
                 newItem.draggable = true;
@@ -466,26 +515,35 @@
                 newItem.dataset.type = type;
                 newItem.innerHTML = `<span class="drag-handle px-2"><i class="fas fa-grip-vertical text-gray-400"></i></span>
                     <input type="text" value="New Question" class="flex-grow border rounded p-2 text-sm" data-qindex="${idx}" data-type="${type}">
-                    <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>`;
+                    <button onclick="deleteQuestion('${type}', ${idx})" class="text-red-500 hover:text-red-700 px-2"><i class="fas fa-trash"></i></button>`;
                 container.appendChild(newItem);
                 setupDragListeners(newItem);
+                // Re-index all after add to keep indices clean
+                reindexQuestions(type);
             };
-            
+
+            // FIX #17: Centralised reindex function used after every add/delete/drop
+            function reindexQuestions(type) {
+                const container = document.getElementById(type === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList');
+                if(!container) return;
+                container.querySelectorAll('.question-item').forEach((item, newIdx) => {
+                    item.dataset.index = newIdx;
+                    const input = item.querySelector('input');
+                    if(input) input.dataset.qindex = newIdx;
+                    const btn = item.querySelector('button');
+                    if(btn) btn.setAttribute('onclick', `deleteQuestion('${type}', ${newIdx})`);
+                });
+            }
+
             window.deleteQuestion = (type, idx) => {
                 if (!confirm('Delete this question?')) return;
                 const container = document.getElementById(type === 'employee' ? 'employeeQuestionsList' : 'managerQuestionsList');
                 const items = container.querySelectorAll('.question-item');
                 if (items.length <= 1) { showToast('Cannot delete the last question', true); return; }
                 items[idx].remove();
-                container.querySelectorAll('.question-item').forEach((item, newIdx) => {
-                    item.dataset.index = newIdx;
-                    const input = item.querySelector('input');
-                    input.dataset.qindex = newIdx;
-                    const btn = item.querySelector('button');
-                    btn.setAttribute('onclick', `deleteQuestion('${type}', ${newIdx})`);
-                });
+                reindexQuestions(type); // FIX #17: always reindex after delete
             };
-            
+
             function setupDragAndDrop() {
                 document.querySelectorAll('.question-item').forEach(item => setupDragListeners(item));
             }
@@ -494,7 +552,7 @@
                     e.dataTransfer.setData('text/plain', JSON.stringify({ type: el.dataset.type, index: el.dataset.index }));
                     el.classList.add('dragging');
                 });
-                el.addEventListener('dragend', (e) => { el.classList.remove('dragging'); });
+                el.addEventListener('dragend', () => { el.classList.remove('dragging'); });
             }
             window.handleDrop = (e, targetType) => {
                 e.preventDefault();
@@ -512,15 +570,9 @@
                 } else {
                     dropTarget.parentNode.insertBefore(items[dragIndex], items[dropIndex]);
                 }
-                container.querySelectorAll('.question-item').forEach((item, idx) => {
-                    item.dataset.index = idx;
-                    const input = item.querySelector('input');
-                    input.dataset.qindex = idx;
-                    const btn = item.querySelector('button');
-                    btn.setAttribute('onclick', `deleteQuestion('${targetType}', ${idx})`);
-                });
+                reindexQuestions(targetType); // FIX #17: reindex after every drop
             };
-            
+
             window.saveQuestionsFromUI = () => {
                 const empInputs = document.querySelectorAll('#employeeQuestionsList input');
                 const mgrInputs = document.querySelectorAll('#managerQuestionsList input');
@@ -530,7 +582,7 @@
                 showToast('Questions saved successfully!');
             };
 
-            // Admin Panel (Admin only)
+            // Admin Panel
             window.showAdminPanel = async () => {
                 await fetchNotifications();
                 document.getElementById('app').innerHTML = `<div class="min-h-screen bg-gray-100 p-4">${renderNavbar('admin')}<div class="max-w-5xl mx-auto"><h1 class="text-2xl font-bold mb-4">⚙️ Admin Control Panel</h1>
@@ -559,7 +611,7 @@
                 }
             };
 
-            // Expose
+            // Expose globals
             window.renderDashboard = renderDashboard;
             window.renderUserDirectory = renderUserDirectory;
             window.viewMyResults = viewMyResults;
@@ -575,21 +627,55 @@
             window.confirmLogout = confirmLogout;
             window.logout = logout;
 
-            // Init
-            initDemo().then(() => {
-                auth.onAuthStateChanged(async (user) => {
+            function setStatus(msg) {
+                const el = document.getElementById('loadingStatus');
+                if(el) el.innerText = msg;
+                console.log('[Status]', msg);
+            }
+
+            // Init — auth listener starts immediately
+            const loadingTimeout = setTimeout(() => {
+                const app = document.getElementById('app');
+                if(app && app.querySelector('#loadingSpinner')) {
+                    console.warn('Init timed out — showing login');
+                    setStatus('Timed out. Showing login...');
+                    setTimeout(renderLogin, 1000);
+                }
+            }, 12000);
+
+            setStatus('Waiting for Firebase Auth...');
+            auth.onAuthStateChanged(async (user) => {
+                clearTimeout(loadingTimeout);
+                try {
                     if (user) {
+                        setStatus('User found, loading profile...');
+                        initDemo().catch(e => console.warn('initDemo (non-fatal):', e));
                         const doc = await db.collection('users').doc(user.uid).get();
                         if (doc.exists) {
+                            setStatus('Profile loaded, loading settings...');
                             currentUserData = { id: doc.id, ...doc.data() };
                             currentUser = user;
                             await loadSettings();
+                            setStatus('Loading notifications...');
                             await fetchNotifications();
+                            setStatus('Rendering dashboard...');
                             renderDashboard();
-                        } else { renderLogin(); }
-                    } else { renderLogin(); }
-                });
-            }).catch(e => { console.error(e); renderLogin(); });
+                        } else {
+                            setStatus('No profile found, signing out...');
+                            await auth.signOut();
+                            renderLogin();
+                        }
+                    } else {
+                        setStatus('No user session, showing login...');
+                        renderLogin();
+                    }
+                } catch(e) {
+                    console.error('Auth state error:', e);
+                    const errEl = document.getElementById('loadingError');
+                    if(errEl) { errEl.style.display='block'; errEl.innerText = '❌ ' + (e.message || e); }
+                    setTimeout(renderLogin, 2000);
+                }
+            });
         })();
     </script>
 </body>
