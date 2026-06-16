@@ -12,7 +12,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
-        /* ── BASE ── */
         *, *::before, *::after { box-sizing: border-box; }
         body {
             background: #080c18;
@@ -24,37 +23,11 @@
             color: #e2e8f0;
             font-family: 'Segoe UI', system-ui, sans-serif;
         }
-
-        /* ── GLASS CARD ── */
-        .glass {
-            background: rgba(13, 22, 45, 0.72);
-            backdrop-filter: blur(18px) saturate(1.4);
-            -webkit-backdrop-filter: blur(18px) saturate(1.4);
-            border: 1px solid rgba(0, 150, 255, 0.22);
-            border-radius: 16px;
-        }
-        .glass-light {
-            background: rgba(255,255,255,0.04);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 191, 255, 0.15);
-            border-radius: 12px;
-        }
-
-        /* ── NAV ── */
-        nav {
-            background: rgba(6, 12, 28, 0.88) !important;
-            backdrop-filter: blur(20px) !important;
-            -webkit-backdrop-filter: blur(20px) !important;
-            border-bottom: 1px solid rgba(0, 150, 255, 0.25) !important;
-            box-shadow: 0 0 30px rgba(0, 120, 255, 0.1) !important;
-        }
+        .glass { background: rgba(13, 22, 45, 0.72); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border: 1px solid rgba(0, 150, 255, 0.22); border-radius: 16px; }
+        .glass-light { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(0, 191, 255, 0.15); border-radius: 12px; }
+        nav { background: rgba(6, 12, 28, 0.88) !important; backdrop-filter: blur(20px) !important; -webkit-backdrop-filter: blur(20px) !important; border-bottom: 1px solid rgba(0, 150, 255, 0.25) !important; box-shadow: 0 0 30px rgba(0, 120, 255, 0.1) !important; }
         nav .font-bold { color: #7dd3fc; }
-        nav button {
-            color: #94a3b8;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
+        nav button { color: #94a3b8; border-radius: 8px; transition: all 0.2s; }
         nav button:hover { color: #00bfff; background: rgba(0,191,255,0.08) !important; }
         nav .bg-blue-100 { background: rgba(0,191,255,0.15) !important; color: #00bfff !important; border-radius: 8px; }
         nav .bg-indigo-100 { background: rgba(99,102,241,0.18) !important; color: #a5b4fc !important; border-radius: 8px; }
@@ -63,19 +36,13 @@
         nav .bg-blue-600, nav .bg-blue-700 { background: linear-gradient(135deg,#0070e0,#00bfff) !important; color: #fff !important; border-radius: 8px; box-shadow: 0 0 12px rgba(0,191,255,0.35); }
         nav .bg-red-100 { background: rgba(239,68,68,0.15) !important; color: #fca5a5 !important; border-radius: 8px; }
         nav .text-xs.bg-gray-200 { background: rgba(255,255,255,0.08) !important; color: #94a3b8 !important; border-radius: 6px; padding: 2px 8px; }
-
-        /* ── BADGES ── */
         .company-badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
         .company-Nuebe { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
         .company-1118  { background: rgba(236,72,153,0.2); color: #f472b6; border: 1px solid rgba(236,72,153,0.3); }
         .company-Kargo { background: rgba(249,115,22,0.2); color: #fb923c; border: 1px solid rgba(249,115,22,0.3); }
         .status-badge  { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.07); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); }
-
-        /* ── TOAST ── */
         .toast { position: fixed; bottom: 24px; right: 24px; background: linear-gradient(135deg,#0070e0,#00bfff); color: white; padding: 12px 20px; border-radius: 12px; z-index: 9999; box-shadow: 0 0 24px rgba(0,191,255,0.4); font-weight: 600; }
         .toast.error { background: linear-gradient(135deg,#dc2626,#ef4444); box-shadow: 0 0 24px rgba(239,68,68,0.4); }
-
-        /* ── MODAL ── */
         .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .modal-content { background: #0d1428; border: 1px solid rgba(0,150,255,0.3); border-radius: 24px; max-width: 90vw; max-height: 85vh; overflow: auto; width: 800px; padding: 28px; box-shadow: 0 0 60px rgba(0,120,255,0.25); }
         .modal-content h2 { color: #7dd3fc; }
@@ -83,99 +50,51 @@
         .modal-content input:focus, .modal-content select:focus { border-color: #00bfff; box-shadow: 0 0 0 3px rgba(0,191,255,0.12); }
         .modal-content button[type="submit"] { background: linear-gradient(135deg,#0070e0,#00bfff); color: #fff; border: none; border-radius: 10px; padding: 10px 0; width: 100%; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
         .modal-content button[type="button"] { background: rgba(255,255,255,0.07); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 0; width: 100%; margin-top: 8px; cursor: pointer; }
-
-        /* ── INPUTS (global) ── */
-        input[type=text], input[type=email], input[type=password], input[type=number], select, textarea {
-            background: rgba(255,255,255,0.05) !important;
-            border: 1px solid rgba(0,150,255,0.22) !important;
-            color: #e2e8f0 !important;
-            border-radius: 10px !important;
-            transition: border 0.2s, box-shadow 0.2s;
-        }
-        input[type=text]:focus, input[type=email]:focus, input[type=password]:focus,
-        input[type=number]:focus, select:focus, textarea:focus {
-            border-color: #00bfff !important;
-            box-shadow: 0 0 0 3px rgba(0,191,255,0.12) !important;
-            outline: none !important;
-        }
+        input[type=text], input[type=email], input[type=password], input[type=number], select, textarea { background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(0,150,255,0.22) !important; color: #e2e8f0 !important; border-radius: 10px !important; transition: border 0.2s, box-shadow 0.2s; }
+        input[type=text]:focus, input[type=email]:focus, input[type=password]:focus, input[type=number]:focus, select:focus, textarea:focus { border-color: #00bfff !important; box-shadow: 0 0 0 3px rgba(0,191,255,0.12) !important; outline: none !important; }
         input::placeholder, textarea::placeholder { color: #475569 !important; }
         select option { background: #0d1428; color: #e2e8f0; }
-
-        /* ── USER CARD ── */
-        .user-card {
-            background: rgba(13,22,45,0.8);
-            backdrop-filter: blur(14px);
-            border: 1px solid rgba(0,150,255,0.18);
-            border-radius: 18px;
-            transition: all 0.25s;
-        }
+        .user-card { background: rgba(13,22,45,0.8); backdrop-filter: blur(14px); border: 1px solid rgba(0,150,255,0.18); border-radius: 18px; transition: all 0.25s; }
         .user-card:hover { transform: translateY(-3px); border-color: rgba(0,191,255,0.45); box-shadow: 0 8px 32px rgba(0,120,255,0.2); }
         .user-card .font-bold { color: #e2e8f0; }
         .user-card .text-gray-500 { color: #64748b !important; }
         .user-card .text-2xl { color: #00bfff; }
         .user-card .text-green-600 { color: #34d399 !important; }
-
-        /* ── CARD BORDERS FOR ROLES ── */
         .border-purple-500 { border-left-color: #a855f7 !important; }
         .border-green-500  { border-left-color: #22c55e !important; }
         .border-blue-500   { border-left-color: #00bfff !important; }
         .border-gray-400   { border-left-color: #475569 !important; }
-
-        /* ── BUTTONS ── */
         .btn-blue   { background: linear-gradient(135deg,#0060cc,#00bfff); color: #fff; border: none; border-radius: 10px; padding: 6px 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 12px rgba(0,191,255,0.25); }
         .btn-blue:hover { box-shadow: 0 0 20px rgba(0,191,255,0.45); opacity: 0.9; }
         .btn-green  { background: linear-gradient(135deg,#059669,#34d399); color: #fff; border: none; border-radius: 10px; padding: 6px 16px; font-weight: 600; cursor: pointer; }
         .btn-red    { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 6px 16px; cursor: pointer; }
         .btn-gray   { background: rgba(255,255,255,0.07); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 6px 16px; cursor: pointer; }
         .btn-yellow { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 6px 16px; cursor: pointer; }
-
-        /* Inline action buttons in cards */
         .bg-blue-100   { background: rgba(0,191,255,0.12) !important; color: #38bdf8 !important; border-radius: 8px; }
         .text-blue-700 { color: #38bdf8 !important; }
         .bg-yellow-100 { background: rgba(245,158,11,0.12) !important; color: #fbbf24 !important; border-radius: 8px; }
         .text-yellow-700 { color: #fbbf24 !important; }
         .bg-red-100    { background: rgba(239,68,68,0.12) !important; color: #fca5a5 !important; border-radius: 8px; }
         .text-red-700  { color: #fca5a5 !important; }
-
-        /* ── FEEDBACK CARD ── */
         .feedback-card { background: rgba(13,22,45,0.75); border-left: 4px solid #0080ff; border-radius: 14px; transition: all 0.2s; margin-bottom: 14px; overflow: hidden; }
         .feedback-card:hover { background: rgba(13,22,45,0.9); border-left-color: #00bfff; }
         .feedback-card .bg-gradient-to-r { background: linear-gradient(135deg, rgba(0,90,200,0.85), rgba(0,191,255,0.7)) !important; }
-
-        /* ── SCORE BADGES ── */
         .score-excellent { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
         .score-good      { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
         .score-poor      { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-
-        /* ── RATING BUTTONS ── */
-        .rating-btn {
-            width: 40px; height: 40px; border-radius: 50%;
-            border: 1px solid rgba(0,150,255,0.3);
-            background: rgba(255,255,255,0.04);
-            color: #94a3b8;
-            font-weight: 600; cursor: pointer; transition: all 0.15s;
-            display: inline-flex; align-items: center; justify-content: center;
-        }
+        .rating-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(0,150,255,0.3); background: rgba(255,255,255,0.04); color: #94a3b8; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; }
         .rating-btn:hover { border-color: #00bfff; color: #00bfff; background: rgba(0,191,255,0.1); }
         .rating-btn.selected { background: linear-gradient(135deg,#0060cc,#00bfff) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 0 12px rgba(0,191,255,0.4); }
-
-        /* ── ANON BADGE ── */
         .anon-badge { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34d399; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
-
-        /* ── ALERTS ── */
         .bg-red-50 { background: rgba(239,68,68,0.08) !important; }
         .border-red-500 { border-color: #ef4444 !important; }
         .bg-blue-50 { background: rgba(0,120,255,0.08) !important; }
         .border-blue-200 { border-color: rgba(0,150,255,0.3) !important; }
         .text-blue-800 { color: #93c5fd !important; }
         .text-red-500 { color: #f87171 !important; }
-
-        /* ── DASHBOARD STAT CARDS ── */
         .bg-white { background: rgba(13,22,45,0.75) !important; border: 1px solid rgba(0,150,255,0.18) !important; }
         .bg-gray-50 { background: rgba(255,255,255,0.03) !important; }
         .bg-gray-100 { background: #080c18 !important; }
-
-        /* ── GRADIENT STAT CARDS (dashboard/report) ── */
         .bg-gradient-to-r.from-blue-500.to-blue-600   { background: linear-gradient(135deg,#0055b3,#0099e6) !important; border: 1px solid rgba(0,153,230,0.35); box-shadow: 0 0 20px rgba(0,120,255,0.2); }
         .bg-gradient-to-r.from-green-500.to-green-600  { background: linear-gradient(135deg,#047857,#10b981) !important; border: 1px solid rgba(16,185,129,0.35); box-shadow: 0 0 20px rgba(16,185,129,0.15); }
         .bg-gradient-to-r.from-purple-500.to-purple-600 { background: linear-gradient(135deg,#6d28d9,#a855f7) !important; border: 1px solid rgba(168,85,247,0.35); box-shadow: 0 0 20px rgba(168,85,247,0.15); }
@@ -183,8 +102,6 @@
         .bg-gradient-to-r { border-radius: 14px !important; }
         .rounded-xl { border-radius: 14px !important; }
         .rounded-2xl { border-radius: 18px !important; }
-
-        /* ── TABLE ── */
         table { border-collapse: collapse; width: 100%; }
         thead.bg-gray-50 tr { background: rgba(0,120,255,0.06) !important; }
         thead th { color: #7dd3fc !important; font-size: 12px; letter-spacing: 0.07em; text-transform: uppercase; padding: 12px !important; border-bottom: 1px solid rgba(0,150,255,0.2); }
@@ -193,27 +110,23 @@
         tbody td { color: #cbd5e1; padding: 10px 12px; }
         td.font-medium { color: #e2e8f0 !important; }
         .font-bold { color: #e2e8f0; }
-
-        /* ── NOTIFICATION DROPDOWN ── */
         .notification-dropdown { position: absolute; right: 0; top: 100%; background: #0d1428; border: 1px solid rgba(0,150,255,0.25); border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.5); width: 320px; max-height: 400px; overflow-y: auto; z-index: 9999; margin-top: 8px; }
         .notification-item { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; transition: background 0.15s; color: #cbd5e1; font-size: 14px; }
         .notification-item:hover { background: rgba(0,120,255,0.08); }
         .notification-item.unread { background: rgba(0,100,255,0.1); }
         .text-sm { color: #cbd5e1; }
         .text-xs.text-gray-400 { color: #475569 !important; }
-
-        /* ── LOADING SPINNER ── */
         .loading-spinner { border: 3px solid rgba(0,150,255,0.15); border-top: 3px solid #00bfff; border-radius: 50%; width: 44px; height: 44px; animation: spin 0.9s linear infinite; margin: 20px auto; }
         @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         #loadingStatus { color: #7dd3fc; }
-
-        /* ── DRAG ITEMS ── */
         .question-item { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 12px; margin-bottom: 8px; border: 1px solid rgba(0,150,255,0.18); color: #cbd5e1; }
         .question-item.dragging { opacity: 0.45; }
         .drag-handle { cursor: grab; color: #334155; }
         .drag-handle:active { cursor: grabbing; }
-
-        /* ── MISC TEXT ── */
+        /* paragraph question badge */
+        .q-type-badge-paragraph { background: rgba(168,85,247,0.18); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .q-type-badge-rating { background: rgba(0,191,255,0.15); color: #38bdf8; border: 1px solid rgba(0,191,255,0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .paragraph-answer-box { width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 14px; resize: vertical; min-height: 90px; line-height: 1.6; }
         h1, h2, h3 { color: #e2e8f0; }
         .text-gray-500 { color: #64748b !important; }
         .text-gray-400 { color: #475569 !important; }
@@ -231,18 +144,12 @@
         .border-b { border-bottom-color: rgba(255,255,255,0.06) !important; }
         .border { border-color: rgba(0,150,255,0.18) !important; }
         .shadow { box-shadow: 0 4px 24px rgba(0,0,0,0.4) !important; }
-
-        /* ── PENDING EVAL ROWS ── */
         .space-y-3 > div { background: rgba(255,255,255,0.03); border: 1px solid rgba(0,150,255,0.18); border-radius: 12px; }
         .space-y-3 > div .font-medium { color: #e2e8f0; }
-
-        /* ── LOGIN CARD ── */
         #loginForm input { margin-bottom: 12px; }
         #loginForm button { background: linear-gradient(135deg,#0055b3,#00bfff); color: #fff; border: none; border-radius: 12px; padding: 13px; font-weight: 700; font-size: 15px; width: 100%; cursor: pointer; box-shadow: 0 0 24px rgba(0,191,255,0.3); transition: all 0.2s; }
         #loginForm button:hover { box-shadow: 0 0 36px rgba(0,191,255,0.5); }
         .text-blue-500.fas { color: #00bfff !important; }
-
-        /* ── SAVE / SUBMIT BUTTONS ── */
         .bg-green-600 { background: linear-gradient(135deg,#059669,#34d399) !important; color: #fff !important; border: none !important; font-weight: 600 !important; box-shadow: 0 0 14px rgba(16,185,129,0.2); }
         .bg-blue-600  { background: linear-gradient(135deg,#0055b3,#00bfff) !important; color: #fff !important; border: none !important; font-weight: 600 !important; box-shadow: 0 0 14px rgba(0,191,255,0.2); }
         .bg-gray-500  { background: rgba(255,255,255,0.08) !important; color: #94a3b8 !important; border: 1px solid rgba(255,255,255,0.12) !important; }
@@ -250,45 +157,23 @@
         .bg-gray-300  { background: rgba(255,255,255,0.08) !important; color: #94a3b8 !important; }
         .bg-green-500 { background: linear-gradient(135deg,#059669,#34d399) !important; }
         .bg-blue-700  { background: linear-gradient(135deg,#0040a0,#0080cc) !important; }
-
-        /* ── ROUNDED BUTTONS ── */
         .rounded-full { border-radius: 9999px !important; }
         .rounded-lg   { border-radius: 12px !important; }
         .rounded      { border-radius: 10px !important; }
-
-        /* ── ADMIN PANEL LABELS ── */
         label { color: #94a3b8; font-size: 14px; }
-
-        /* ── EVAL FORM CONTAINER ── */
-        .max-w-3xl.mx-auto.bg-white {
-            background: rgba(13,22,45,0.88) !important;
-            border: 1px solid rgba(0,150,255,0.25) !important;
-            box-shadow: 0 0 60px rgba(0,120,255,0.15) !important;
-        }
+        .max-w-3xl.mx-auto.bg-white { background: rgba(13,22,45,0.88) !important; border: 1px solid rgba(0,150,255,0.25) !important; box-shadow: 0 0 60px rgba(0,120,255,0.15) !important; }
         .max-w-3xl p.text-xs { color: #93c5fd !important; }
         .bg-blue-50.rounded { background: rgba(0,120,255,0.08) !important; border: 1px solid rgba(0,150,255,0.2); }
-
-        /* ── MY RESULTS ── */
         .text-5xl { color: #00bfff; }
         .border-blue-300 { border-left-color: #0080ff !important; }
-
-        /* ── QUESTION MANAGER TABS ── */
         #tabEmployee, #tabManager { transition: all 0.2s; }
-
-        /* ── SCROLLBAR ── */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
         ::-webkit-scrollbar-thumb { background: rgba(0,150,255,0.3); border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(0,191,255,0.5); }
-
-        /* ── OVERFLOW WRAPPER ── */
         .overflow-x-auto { scrollbar-width: thin; }
-
-        /* ── GLOW PULSE (loading screen) ── */
         @keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
         #loadingSpinner { border: 3px solid rgba(0,150,255,0.15); border-top: 3px solid #00bfff; animation: spin 0.9s linear infinite; box-shadow: 0 0 16px rgba(0,191,255,0.3); }
-
-        /* ── HIDDEN UTILITY ── */
         .hidden { display: none !important; }
     </style>
 </head>
@@ -300,7 +185,7 @@
             </div>
             <div id="loadingSpinner" style="border:3px solid rgba(0,150,255,0.15); border-top:3px solid #00bfff; border-radius:50%; width:44px; height:44px; animation:spin 0.9s linear infinite; margin:0 auto 20px; box-shadow: 0 0 16px rgba(0,191,255,0.3);"></div>
             <style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
-            <p id="loadingStatus" style="color:#7dd3fc; font-size:15px; font-weight:500;">Connecting to Firebase...</p>
+            <p id="loadingStatus" style="color:#7dd3fc; font-size:15px; font-weight:500;">Initializing...</p>
             <p id="loadingError" style="color:#f87171; font-size:13px; margin-top:10px; display:none;"></p>
         </div>
     </div>
@@ -329,62 +214,84 @@
             const db = firebase.firestore();
 
             let currentUser = null, currentUserData = null;
-            let selectedCompanyFilter = 'all';
+
+            let dashboardCompanyFilter = 'all';
+            let userDirCompanyFilter = 'all';
+            window._hrCompanyFilter = 'all';
+
             let selectedQuarter = getCurrentQuarter();
             let unreadNotificationCount = 0;
             let notifications = [];
+
+            // ── Default question objects: each has { text, type } where type = 'rating' | 'paragraph'
             const appSettings = {
                 companies: ['Nuebe', '1118', 'Kargo'],
                 operationWeight: 0.7,
                 hrWeight: 0.3,
                 deductions: { late: 2, npsl: 2, npl: 2, awol: 10, warningA: 5, warningB: 10, warningC: 20 },
+                // Questions are stored as objects: { text: string, type: 'rating' | 'paragraph' }
+                // Legacy plain-string arrays are auto-migrated on load.
                 employeeQuestions: [
-                    "1. Able to Work Independently",
-                    "2. Apply acquired knowledge and skills efficiently",
-                    "3. Update Promptly on Assigned Work",
-                    "4. Complete the assigned tasks on times",
-                    "5. Compliance with Company Policies and Rules strictly",
-                    "6. Follow the Department's Procedures and SOP strictly",
-                    "7. Execute the Tasks from Superiors and Management",
-                    "8. Well-presented and Manner for Company image",
-                    "9. Be clear, precise and conclusive",
-                    "10. Convey the message to other Clearly",
-                    "11. Adapt yourself to communicate with team members effectively",
-                    "12. Express own opinions clearly and willing to listen and accept others opinion",
-                    "13. Improve Work Quality Continuously",
-                    "14. Proactive and Motivated",
-                    "15. Strong sense of Responsibility",
-                    "16. Provide Service in professional and friendly manner",
-                    "17. Respect and be polite to individuals",
-                    "18. Respect the individual's Privacy and Highly protect the confidentiality of Company and Clients' Information",
-                    "19. With integrity and Honesty, not Slanderous",
-                    "20. Acted with Fairness, Trustworthy"
+                    { text: "1. Able to Work Independently", type: "rating" },
+                    { text: "2. Apply acquired knowledge and skills efficiently", type: "rating" },
+                    { text: "3. Update Promptly on Assigned Work", type: "rating" },
+                    { text: "4. Complete the assigned tasks on times", type: "rating" },
+                    { text: "5. Compliance with Company Policies and Rules strictly", type: "rating" },
+                    { text: "6. Follow the Department's Procedures and SOP strictly", type: "rating" },
+                    { text: "7. Execute the Tasks from Superiors and Management", type: "rating" },
+                    { text: "8. Well-presented and Manner for Company image", type: "rating" },
+                    { text: "9. Be clear, precise and conclusive", type: "rating" },
+                    { text: "10. Convey the message to other Clearly", type: "rating" },
+                    { text: "11. Adapt yourself to communicate with team members effectively", type: "rating" },
+                    { text: "12. Express own opinions clearly and willing to listen and accept others opinion", type: "rating" },
+                    { text: "13. Improve Work Quality Continuously", type: "rating" },
+                    { text: "14. Proactive and Motivated", type: "rating" },
+                    { text: "15. Strong sense of Responsibility", type: "rating" },
+                    { text: "16. Provide Service in professional and friendly manner", type: "rating" },
+                    { text: "17. Respect and be polite to individuals", type: "rating" },
+                    { text: "18. Respect the individual's Privacy and Highly protect the confidentiality of Company and Clients' Information", type: "rating" },
+                    { text: "19. With integrity and Honesty, not Slanderous", type: "rating" },
+                    { text: "20. Acted with Fairness, Trustworthy", type: "rating" }
                 ],
                 managerQuestions: [
-                    "1. Strategic Thinking & Planning",
-                    "2. Team Leadership & Development",
-                    "3. Decision Making & Problem Solving",
-                    "4. Communication & Influence",
-                    "5. Conflict Resolution",
-                    "6. Delegation & Empowerment",
-                    "7. Performance Management",
-                    "8. Change Management",
-                    "9. Emotional Intelligence",
-                    "10. Accountability & Ownership",
-                    "11. Coaching & Mentoring",
-                    "12. Resource Management",
-                    "13. Innovation & Creativity",
-                    "14. Stakeholder Management",
-                    "15. Ethical Conduct & Integrity"
+                    { text: "1. Strategic Thinking & Planning", type: "rating" },
+                    { text: "2. Team Leadership & Development", type: "rating" },
+                    { text: "3. Decision Making & Problem Solving", type: "rating" },
+                    { text: "4. Communication & Influence", type: "rating" },
+                    { text: "5. Conflict Resolution", type: "rating" },
+                    { text: "6. Delegation & Empowerment", type: "rating" },
+                    { text: "7. Performance Management", type: "rating" },
+                    { text: "8. Change Management", type: "rating" },
+                    { text: "9. Emotional Intelligence", type: "rating" },
+                    { text: "10. Accountability & Ownership", type: "rating" },
+                    { text: "11. Coaching & Mentoring", type: "rating" },
+                    { text: "12. Resource Management", type: "rating" },
+                    { text: "13. Innovation & Creativity", type: "rating" },
+                    { text: "14. Stakeholder Management", type: "rating" },
+                    { text: "15. Ethical Conduct & Integrity", type: "rating" }
                 ]
             };
+
+            // Migrate legacy plain-string arrays to objects
+            function migrateQuestions(arr) {
+                if (!Array.isArray(arr)) return arr;
+                return arr.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q);
+            }
 
             function canSeeRaterIdentity() {
                 return currentUserData && (currentUserData.role === 'hr' || currentUserData.role === 'admin');
             }
 
             function getCurrentQuarter() { const d = new Date(); return `${d.getFullYear()}-Q${Math.floor(d.getMonth()/3)+1}`; }
-            function generateQuarterOptions() { const y = new Date().getFullYear(); const qs = []; [y-1,y,y+1].forEach(yr => { for(let q=1; q<=4; q++) qs.push(`${yr}-Q${q}`); }); return qs; }
+
+            function generateQuarterOptions() {
+                const y = new Date().getFullYear();
+                const qs = [];
+                for(let yr = y - 5; yr <= y + 2; yr++) {
+                    for(let q = 1; q <= 4; q++) qs.push(`${yr}-Q${q}`);
+                }
+                return qs;
+            }
             function getLastNQuarters(n=4) { const cur = getCurrentQuarter(); const all = generateQuarterOptions(); const idx = all.indexOf(cur); if(idx===-1) return all.slice(0,n); return all.slice(Math.max(0, idx-n+1), idx+1); }
 
             function showToast(msg, isErr=false) {
@@ -407,14 +314,23 @@
                     const d = await db.collection('settings').doc('appConfig').get();
                     if(d.exists) {
                         const data = d.data();
-                        Object.assign(appSettings, data);
-                        if (!appSettings.employeeQuestions) appSettings.employeeQuestions = [...(appSettings.questions || [])];
-                        if (!appSettings.managerQuestions) appSettings.managerQuestions = [
-                            "1. Strategic Thinking & Planning","2. Team Leadership & Development","3. Decision Making & Problem Solving",
-                            "4. Communication & Influence","5. Conflict Resolution","6. Delegation & Empowerment","7. Performance Management",
-                            "8. Change Management","9. Emotional Intelligence","10. Accountability & Ownership","11. Coaching & Mentoring",
-                            "12. Resource Management","13. Innovation & Creativity","14. Stakeholder Management","15. Ethical Conduct & Integrity"
-                        ];
+                        // Merge loaded data
+                        if(data.companies) appSettings.companies = data.companies;
+                        if(data.operationWeight !== undefined) appSettings.operationWeight = data.operationWeight;
+                        if(data.hrWeight !== undefined) appSettings.hrWeight = data.hrWeight;
+                        if(data.deductions) appSettings.deductions = data.deductions;
+
+                        // Handle employeeQuestions — support both legacy string arrays and new object arrays
+                        if(data.employeeQuestions) {
+                            appSettings.employeeQuestions = migrateQuestions(data.employeeQuestions);
+                        } else if(data.questions) {
+                            // oldest legacy field
+                            appSettings.employeeQuestions = migrateQuestions(data.questions);
+                        }
+
+                        if(data.managerQuestions) {
+                            appSettings.managerQuestions = migrateQuestions(data.managerQuestions);
+                        }
                     } else {
                         await saveSettings();
                     }
@@ -451,7 +367,7 @@
                 if(isHidden) {
                     const cont = document.getElementById('notificationList');
                     if(cont) cont.innerHTML = notifications.length
-                        ? notifications.map(n=>`<div class="notification-item ${n.read?'':'unread'}" onclick="handleNotificationClick('${n.id}','${n.link}')">
+                        ? notifications.map(n=>`<div class="notification-item ${n.read?'':'unread'}" onclick="handleNotificationClick('${n.id}','${n.link||''}')">
                             <div style="display:flex;gap:10px;align-items:flex-start;">
                                 <i class="fas fa-${n.type==='success'?'check-circle" style="color:#34d399':n.type==='warning'?'exclamation-triangle" style="color:#fbbf24':'info-circle" style="color:#38bdf8'}" style="margin-top:2px;"></i>
                                 <div style="flex:1;">
@@ -463,7 +379,16 @@
                         : '<p style="padding:20px;text-align:center;color:#475569;font-size:14px;">No notifications</p>';
                 }
             };
-            window.handleNotificationClick = async function(id, link) { await markRead(id); if(link&&link!=='#') { if(link==='myresults') viewMyResults(); else if(link.startsWith('user/')) viewUserDetails(link.split('/')[1]); else renderDashboard(); } toggleNotificationDropdown(); };
+            window.handleNotificationClick = async function(id, link) {
+                await markRead(id);
+                if(link && link !== '#') {
+                    if(link==='myresults') viewMyResults();
+                    else if(link.startsWith('user/')) viewUserDetails(link.split('/')[1]);
+                    else renderDashboard();
+                }
+                const dd = document.getElementById('notificationDropdown');
+                if(dd && !dd.classList.contains('hidden')) dd.classList.add('hidden');
+            };
 
             // ── NAVBAR ──
             function renderNavbar(active='home') {
@@ -499,53 +424,47 @@
                     </div>
                 </nav>`;
             }
-            function confirmLogout() { if(confirm('Logout?')) logout(); }
 
-            // ── AUTH ──
-            async function initDemo() {
-                const snap = await db.collection('users').get();
-                if(snap.empty) {
-                    const demos = [
-                        {name:"Admin",email:"admin@company.com",password:"password",role:"admin",company:"Nuebe"},
-                        {name:"Sarah HR",email:"sarah@nuebe.com",password:"password",role:"hr",company:"Nuebe"},
-                        {name:"David Mgr",email:"david@nuebe.com",password:"password",role:"manager",company:"Nuebe"},
-                        {name:"John Emp",email:"john@nuebe.com",password:"password",role:"employee",company:"Nuebe"},
-                        {name:"Mary Emp",email:"mary@1118.com",password:"password",role:"employee",company:"1118"},
-                        {name:"Peter Emp",email:"peter@kargo.com",password:"password",role:"employee",company:"Kargo"}
-                    ];
-                    for(const u of demos) {
-                        try {
-                            const cred = await auth.createUserWithEmailAndPassword(u.email,u.password);
-                            await db.collection('users').doc(cred.user.uid).set({name:u.name,email:u.email,role:u.role,company:u.company,createdAt:new Date().toISOString()});
-                        } catch(e){}
-                    }
-                }
-                await loadSettings();
+            function confirmLogout() {
+                const modal = document.createElement('div');
+                modal.className = 'modal';
+                modal.id = 'logoutModal';
+                modal.innerHTML = `<div class="modal-content" style="max-width:380px;width:100%;text-align:center;">
+                    <i class="fas fa-sign-out-alt" style="font-size:36px;color:#fca5a5;margin-bottom:14px;"></i>
+                    <h2 style="margin-bottom:8px;">Logout?</h2>
+                    <p style="color:#64748b;font-size:14px;margin-bottom:20px;">You will need to sign in again to access the system.</p>
+                    <div style="display:flex;gap:10px;">
+                        <button type="button" onclick="document.getElementById('logoutModal').remove()" style="flex:1;">Cancel</button>
+                        <button type="submit" onclick="document.getElementById('logoutModal').remove();logout();" style="flex:1;">Logout</button>
+                    </div>
+                </div>`;
+                document.getElementById('app').appendChild(modal);
             }
 
+            // ── AUTH ──
             async function createUser(email, password, name, company, role) {
-                const adminEmail = currentUser.email;
-                const adminPassword = sessionStorage.getItem('adminPass');
-                if (!adminPassword) { showToast('Session expired. Please login again.', true); renderLogin(); return; }
+                const secondaryAppName = 'secondary-' + Date.now();
+                let secondaryApp;
                 try {
-                    const result = await auth.createUserWithEmailAndPassword(email, password);
-                    await db.collection('users').doc(result.user.uid).set({
+                    secondaryApp = firebase.initializeApp(firebase.app().options, secondaryAppName);
+                    const secondaryAuth = secondaryApp.auth();
+                    const result = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+                    const newUid = result.user.uid;
+                    await secondaryAuth.signOut();
+                    await new Promise(r => setTimeout(r, 200));
+                    await secondaryApp.delete();
+                    await db.collection('users').doc(newUid).set({
                         name, email, role, company,
                         createdAt: new Date().toISOString(),
-                        createdBy: currentUserData.name
+                        createdBy: currentUserData?.name || 'System'
                     });
+                    return newUid;
                 } catch(err) {
                     showToast(err.message, true);
-                } finally {
-                    try {
-                        await auth.signInWithEmailAndPassword(adminEmail, adminPassword);
-                        const adminDoc = await db.collection('users').doc(auth.currentUser.uid).get();
-                        currentUserData = { id: adminDoc.id, ...adminDoc.data() };
-                        currentUser = auth.currentUser;
-                    } catch(reAuthErr) {
-                        console.error('Re-auth failed', reAuthErr);
-                        renderLogin();
+                    if(secondaryApp) {
+                        try { await secondaryApp.delete(); } catch(e) {}
                     }
+                    throw err;
                 }
             }
 
@@ -556,7 +475,6 @@
                     if(doc.exists) {
                         currentUserData = { id: doc.id, ...doc.data() };
                         currentUser = res.user;
-                        sessionStorage.setItem('adminPass', password);
                         await loadSettings();
                         await fetchNotifications();
                         showToast(`Welcome ${currentUserData.name}`);
@@ -566,7 +484,6 @@
             }
             function logout() {
                 auth.signOut();
-                sessionStorage.removeItem('adminPass');
                 currentUser=null; currentUserData=null;
                 window._reportQuarterFilter = 'all';
                 window._reportCompanyFilter = 'all';
@@ -605,11 +522,10 @@
                 allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; });
                 const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
                 let filtered = users;
-                if(selectedCompanyFilter!=='all') filtered = users.filter(u=>u.company===selectedCompanyFilter);
+                if(userDirCompanyFilter!=='all') filtered = users.filter(u=>u.company===userDirCompanyFilter);
                 if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company);
-                const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr'||currentUserData.role==='manager');
+                const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr');
                 const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr');
-
                 const roleBorderColor = {admin:'#a855f7',hr:'#22c55e',manager:'#00bfff',employee:'#334155'};
 
                 document.getElementById('app').innerHTML = `
@@ -619,7 +535,7 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                             <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-users" style="color:#00bfff;margin-right:10px;"></i>User Directory</h1>
                             <div style="display:flex;gap:10px;">
-                                ${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>`:''}
+                                ${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${userDirCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>`:''}
                                 ${canCreate?`<button onclick="showCreateUserModal()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(16,185,129,0.25);"><i class="fas fa-plus" style="margin-right:6px;"></i>Add User</button>`:''}
                             </div>
                         </div>
@@ -669,26 +585,39 @@
                 const hr = await db.collection('hrRecords').doc(id).get();
                 if(hr.exists) await hr.ref.delete();
                 await db.collection('users').doc(id).delete();
-                showToast('User deleted');
+                showToast('User deleted.');
                 renderUserDirectory();
             };
 
             window.editUser = async (id) => {
                 const doc = await db.collection('users').doc(id).get();
                 const u = doc.data();
+                const currentRole = currentUserData.role;
+                let allowedRoles = [];
+                if (currentRole === 'admin') {
+                    allowedRoles = ['employee', 'manager', 'hr', 'admin'];
+                } else if (currentRole === 'hr') {
+                    allowedRoles = ['employee', 'manager'];
+                } else {
+                    allowedRoles = ['employee'];
+                }
+                const roleOptions = allowedRoles.map(r => `<option value="${r}" ${r===u.role?'selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('');
+
                 const modal = `<div class="modal" id="editUserModal"><div class="modal-content">
-                    <h2 style="margin-bottom:20px;">Edit ${u.name}</h2>
+                    <h2 style="margin-bottom:8px;">Edit ${u.name}</h2>
+                    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#fbbf24;">
+                        <i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>
+                        <strong>Note:</strong> Email changes here only update the display in Firestore — the login email remains unchanged.
+                    </div>
                     <form id="editUserForm">
+                        <label style="font-size:12px;color:#64748b;margin-bottom:4px;display:block;">Display Name</label>
                         <input id="editName" value="${u.name}" placeholder="Full Name" required>
+                        <label style="font-size:12px;color:#64748b;margin-bottom:4px;display:block;">Email (display only)</label>
                         <input id="editEmail" value="${u.email}" placeholder="Email" required>
+                        <label style="font-size:12px;color:#64748b;margin-bottom:4px;display:block;">Company</label>
                         <select id="editCompany">${appSettings.companies.map(c=>`<option value="${c}" ${c===u.company?'selected':''}>${c}</option>`).join('')}</select>
-                        <select id="editRole" style="margin-bottom:12px;">
-                            <option value="employee" ${u.role==='employee'?'selected':''}>Employee</option>
-                            <option value="manager" ${u.role==='manager'?'selected':''}>Manager</option>
-                            <option value="hr" ${u.role==='hr'?'selected':''}>HR</option>
-                            ${currentUserData.role==='admin'?`<option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>`:''}
-                        </select>
-                        <p style="color:#475569;font-size:12px;margin-bottom:14px;">Note: Password changes require Firebase Admin SDK and cannot be done from the UI.</p>
+                        <label style="font-size:12px;color:#64748b;margin-bottom:4px;display:block;">Role</label>
+                        <select id="editRole" style="margin-bottom:16px;">${roleOptions}</select>
                         <button type="submit">Update User</button>
                         <button type="button" onclick="closeModal()">Cancel</button>
                     </form>
@@ -696,20 +625,31 @@
                 document.getElementById('app').insertAdjacentHTML('beforeend',modal);
                 document.getElementById('editUserForm').addEventListener('submit',async(e)=>{
                     e.preventDefault();
-                    const name=document.getElementById('editName').value;
-                    const email=document.getElementById('editEmail').value;
-                    const comp=document.getElementById('editCompany').value;
-                    const role=document.getElementById('editRole').value;
-                    await db.collection('users').doc(id).update({name,email,company:comp,role,updatedAt:new Date().toISOString()});
+                    await db.collection('users').doc(id).update({
+                        name:document.getElementById('editName').value,
+                        email:document.getElementById('editEmail').value,
+                        company:document.getElementById('editCompany').value,
+                        role:document.getElementById('editRole').value,
+                        updatedAt:new Date().toISOString()
+                    });
                     showToast('User updated');
                     closeModal();
                     renderUserDirectory();
                 });
             };
 
-            window.applyUserCompanyFilter = (v) => { selectedCompanyFilter=v; renderUserDirectory(); };
+            window.applyUserCompanyFilter = (v) => { userDirCompanyFilter=v; renderUserDirectory(); };
 
             window.showCreateUserModal = () => {
+                let allowedRoles = [];
+                if (currentUserData.role === 'admin') {
+                    allowedRoles = ['employee', 'manager', 'hr', 'admin'];
+                } else if (currentUserData.role === 'hr') {
+                    allowedRoles = ['employee', 'manager'];
+                } else {
+                    allowedRoles = ['employee'];
+                }
+                const roleOptions = allowedRoles.map(r => `<option value="${r}">${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('');
                 const m = `<div class="modal" id="createUserModal"><div class="modal-content">
                     <h2 style="margin-bottom:20px;">Create New User</h2>
                     <form id="createUserForm">
@@ -717,11 +657,7 @@
                         <input id="newEmail" type="email" placeholder="Email" required>
                         <input id="newPassword" type="password" placeholder="Password (min 6 chars)" required>
                         <select id="newCompany">${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
-                        <select id="newRole" style="margin-bottom:16px;">
-                            <option value="employee">Employee</option>
-                            <option value="manager">Manager</option>
-                            <option value="hr">HR</option>
-                        </select>
+                        <select id="newRole" style="margin-bottom:16px;">${roleOptions}</select>
                         <button type="submit">Create User</button>
                         <button type="button" onclick="closeModal()">Cancel</button>
                     </form>
@@ -737,13 +673,25 @@
                     if(pass.length<6) return showToast('Password too short',true);
                     closeModal();
                     showLoading();
-                    await createUser(email,pass,name,comp,role);
-                    showToast(`User ${name} created!`);
+                    try {
+                        await createUser(email,pass,name,comp,role);
+                        showToast(`User ${name} created!`);
+                    } catch(err) {
+                        showToast('Failed to create user: ' + err.message, true);
+                    }
                     renderUserDirectory();
                 });
             };
 
-            window.closeModal = () => { document.querySelectorAll('.modal').forEach(m=>m.remove()); };
+            window.closeModal = (id) => {
+                if(id) {
+                    const m = document.getElementById(id);
+                    if(m) m.remove();
+                } else {
+                    const modals = document.querySelectorAll('.modal');
+                    if(modals.length) modals[modals.length-1].remove();
+                }
+            };
 
             // ── RESULTS REPORT ──
             window.showResultsReport = async () => {
@@ -761,14 +709,23 @@
                 if(selQ!=='all') filtR = filtR.filter(d=>d.data().quarter===selQ);
                 const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
                 const peer = {};
-                filtR.forEach(r=>{ const d=r.data(); if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0}; peer[d.revieweeId].total+=d.average; peer[d.revieweeId].count++; });
+                filtR.forEach(r=>{
+                    const d=r.data();
+                    // Only count rating-type scores (average field)
+                    if(d.average !== undefined) {
+                        if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0};
+                        peer[d.revieweeId].total+=d.average;
+                        peer[d.revieweeId].count++;
+                    }
+                });
                 const results = [];
                 for(const u of allU.docs) {
                     const user=u.data();
                     if(user.role==='admin') continue;
                     const p=peer[u.id];
                     if(!p||p.count===0) continue;
-                    const op=(p.total/p.count)*20;
+                    const rawOp=(p.total/p.count)*20;
+                    const op=Math.min(100, rawOp);
                     const hr=hrMap[u.id];
                     let hrScore=null;
                     if(hr) {
@@ -804,22 +761,10 @@
                             </div>
                         </div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px;">
-                            <div style="background:linear-gradient(135deg,#0055b3,#0099e6);border-radius:14px;padding:18px;border:1px solid rgba(0,153,230,0.35);box-shadow:0 0 20px rgba(0,120,255,0.2);">
-                                <div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length}</div>
-                                <div style="font-size:13px;color:rgba(255,255,255,0.75);">Evaluated Employees</div>
-                            </div>
-                            <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:14px;padding:18px;border:1px solid rgba(16,185,129,0.35);box-shadow:0 0 20px rgba(16,185,129,0.15);">
-                                <div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div>
-                                <div style="font-size:13px;color:rgba(255,255,255,0.75);">Avg Final Score</div>
-                            </div>
-                            <div style="background:linear-gradient(135deg,#6d28d9,#a855f7);border-radius:14px;padding:18px;border:1px solid rgba(168,85,247,0.35);box-shadow:0 0 20px rgba(168,85,247,0.15);">
-                                <div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div>
-                                <div style="font-size:13px;color:rgba(255,255,255,0.75);">Outstanding (85+)</div>
-                            </div>
-                            <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);border-radius:14px;padding:18px;border:1px solid rgba(239,68,68,0.35);box-shadow:0 0 20px rgba(239,68,68,0.15);">
-                                <div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div>
-                                <div style="font-size:13px;color:rgba(255,255,255,0.75);">Needs Improvement (&lt;70)</div>
-                            </div>
+                            <div style="background:linear-gradient(135deg,#0055b3,#0099e6);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Evaluated Employees</div></div>
+                            <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Avg Final Score</div></div>
+                            <div style="background:linear-gradient(135deg,#6d28d9,#a855f7);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Outstanding (85+)</div></div>
+                            <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Needs Improvement (&lt;70)</div></div>
                         </div>
                         <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;overflow:hidden;">
                             <div style="overflow-x:auto;">
@@ -860,17 +805,19 @@
                 const u = uDoc.data();
                 const ratings = await db.collection('ratings').where('revieweeId','==',userId).get();
                 const reviews = ratings.docs.map(d=>({id:d.id,...d.data()}));
-                const avg = reviews.length?(reviews.reduce((a,b)=>a+b.average,0)/reviews.length).toFixed(1):'N/A';
+                // Only include reviews that have a numeric average for the chart/avg
+                const ratingReviews = reviews.filter(r => r.average !== undefined && r.average !== null);
+                const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):'N/A';
                 const last4 = getLastNQuarters(4);
                 const qScores = [];
-                for(const q of last4) { const qr=reviews.filter(r=>r.quarter===q); qScores.push(qr.length?(qr.reduce((a,b)=>a+b.average,0)/qr.length*20).toFixed(1):null); }
+                for(const q of last4) { const qr=ratingReviews.filter(r=>r.quarter===q); qScores.push(qr.length?(qr.reduce((a,b)=>a+b.average,0)/qr.length*20).toFixed(1):null); }
                 const canDel = currentUserData.role==='admin'||currentUserData.role==='hr';
                 const isHrAdmin = canSeeRaterIdentity();
 
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;">
                     ${renderNavbar('users')}
-                    <div style="max-width:1000px;margin:0 auto;padding:24px 16px;">
+                    <div id="userDetailContent" style="max-width:1000px;margin:0 auto;padding:24px 16px;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
                             <div>
                                 <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">${u.name}</h1>
@@ -895,30 +842,40 @@
                             <canvas id="trendChart" width="400" height="180"></canvas>
                         </div>
                         <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback</h2>
-                        ${reviews.length ? reviews.map((r,i)=>`
-                        <div class="feedback-card">
-                            <div style="background:linear-gradient(135deg,rgba(0,80,180,0.85),rgba(0,150,255,0.7));padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleFeedback(${i})">
-                                <div>
-                                    <span style="font-weight:700;color:#fff;">${isHrAdmin ? r.raterName : 'Anonymous Reviewer'}</span>
-                                    <span style="font-size:12px;color:rgba(255,255,255,0.65);margin-left:8px;">${r.quarter||''}</span>
+                        ${reviews.length ? reviews.map((r,i)=>{
+                            // Render each review card
+                            const hasAvg = r.average !== undefined && r.average !== null;
+                            return `
+                            <div class="feedback-card">
+                                <div style="background:linear-gradient(135deg,rgba(0,80,180,0.85),rgba(0,150,255,0.7));padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleFeedback(${i})">
+                                    <div>
+                                        <span style="font-weight:700;color:#fff;">${isHrAdmin ? r.raterName : 'Anonymous Reviewer'}</span>
+                                        <span style="font-size:12px;color:rgba(255,255,255,0.65);margin-left:8px;">${r.quarter||''}</span>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:14px;">
+                                        ${hasAvg ? `<span style="background:rgba(255,255,255,0.2);color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">⭐ ${r.average}/5</span>` : '<span style="background:rgba(168,85,247,0.3);color:#e9d5ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">📝 Open Feedback</span>'}
+                                        ${canDel?`<button onclick="event.stopPropagation(); deleteFeedback('${r.id}','${userId}')" style="color:rgba(255,255,255,0.6);background:transparent;border:none;cursor:pointer;padding:4px;"><i class="fas fa-trash"></i></button>`:''}
+                                        <i class="fas fa-chevron-down" id="chevron${i}" style="color:rgba(255,255,255,0.7);transition:transform 0.2s;"></i>
+                                    </div>
                                 </div>
-                                <div style="display:flex;align-items:center;gap:14px;">
-                                    <span style="background:rgba(255,255,255,0.2);color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">⭐ ${r.average}/5</span>
-                                    ${canDel?`<button onclick="event.stopPropagation(); deleteFeedback('${r.id}','${userId}')" style="color:rgba(255,255,255,0.6);background:transparent;border:none;cursor:pointer;padding:4px;"><i class="fas fa-trash"></i></button>`:''}
-                                    <i class="fas fa-chevron-down" style="color:rgba(255,255,255,0.7);"></i>
-                                </div>
-                            </div>
-                            <div class="hidden" id="feedbackContent${i}" style="padding:18px;border-top:1px solid rgba(0,150,255,0.15);">
-                                ${r.comments?`<p style="font-style:italic;color:#94a3b8;margin-bottom:16px;">"${r.comments}"</p>`:'<p style="color:#475569;font-style:italic;margin-bottom:16px;">No comments provided</p>'}
-                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:13px;">
-                                    ${r.scores ? (
-                                        Array.isArray(r.scores)
-                                            ? r.scores.map(s=>`<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5</span></div>`).join('')
+                                <div class="hidden" id="feedbackContent${i}" style="padding:18px;border-top:1px solid rgba(0,150,255,0.15);">
+                                    ${r.comments?`<p style="font-style:italic;color:#94a3b8;margin-bottom:16px;">"${r.comments}"</p>`:''}
+                                    ${(r.scores && r.scores.length > 0) ? `
+                                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:13px;">
+                                        ${Array.isArray(r.scores)
+                                            ? r.scores.map(s => s.type === 'paragraph'
+                                                ? `<div style="grid-column:1/-1;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:10px 14px;">
+                                                    <p style="color:#94a3b8;font-size:12px;margin:0 0 6px;font-weight:600;">${s.question}</p>
+                                                    <p style="color:#e2e8f0;margin:0;font-size:13px;line-height:1.6;">${s.answer || '<em style="color:#475569">No answer provided</em>'}</p>
+                                                  </div>`
+                                                : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;font-size:12px;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5</span></div>`
+                                            ).join('')
                                             : Object.entries(r.scores).map(([q,s])=>`<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;">${q}</span><span style="font-weight:700;color:#38bdf8;">${s}/5</span></div>`).join('')
-                                    ) : ''}
+                                        }
+                                    </div>` : (!r.comments ? '<p style="color:#475569;font-style:italic;">No details recorded.</p>' : '')}
                                 </div>
-                            </div>
-                        </div>`).join('') : '<p style="text-align:center;padding:40px;color:#334155;">No feedback yet</p>'}
+                            </div>`;
+                        }).join('') : '<p style="text-align:center;padding:40px;color:#334155;">No feedback yet</p>'}
                     </div>
                 </div>`;
 
@@ -936,19 +893,24 @@
                     });
                 }
             };
-            window.exportUserPDF = (id) => {
-                const el = document.querySelector('.max-w-5xl')||document.querySelector('[style*="max-width:1000px"]');
-                if(!el) return showToast('Cannot find content to export',true);
-                const clone = el.cloneNode(true);
-                clone.querySelectorAll('button').forEach(b=>b.remove());
-                html2pdf().set({ margin:0.5, filename:`performance_${id}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'in',format:'letter',orientation:'portrait'} }).from(clone).save();
+
+            window.exportUserPDF = async (userId) => {
+                const el = document.getElementById('userDetailContent');
+                if(!el) return showToast('Cannot find content to export', true);
+                const btns = el.querySelectorAll('button');
+                btns.forEach(b => b.style.display = 'none');
+                await html2pdf().set({ margin:0.5, filename:`performance_${userId}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{unit:'in',format:'letter',orientation:'portrait'} }).from(el).save();
+                btns.forEach(b => b.style.display = '');
             };
+
             window.deleteFeedback = async (fid, uid) => { if(confirm('Delete this feedback?')) { await db.collection('ratings').doc(fid).delete(); showToast('Deleted'); viewUserDetails(uid); } };
+
             window.toggleFeedback = (i) => {
                 const c=document.getElementById(`feedbackContent${i}`);
-                const icon=c.previousElementSibling.querySelector('.fa-chevron-down, .fa-chevron-up');
+                const icon=document.getElementById(`chevron${i}`);
+                if(!c) return;
                 c.classList.toggle('hidden');
-                if(icon) { icon.classList.toggle('fa-chevron-down'); icon.classList.toggle('fa-chevron-up'); }
+                if(icon) icon.style.transform = !c.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)';
             };
 
             // ── DASHBOARD ──
@@ -957,9 +919,11 @@
                 const allU = await db.collection('users').get();
                 const allR = await db.collection('ratings').get();
                 let feedbacks = allR.docs.map(d=>d.data());
-                if(selectedCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===selectedCompanyFilter);
-                const avgScore = feedbacks.length?(feedbacks.reduce((a,b)=>a+(b.average||0),0)/feedbacks.length).toFixed(1):0;
-                const low = feedbacks.filter(r=>r.average<3);
+                if(dashboardCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===dashboardCompanyFilter);
+                // Only count numeric-rated feedbacks for avgScore
+                const ratedFeedbacks = feedbacks.filter(f=>f.average !== undefined);
+                const avgScore = ratedFeedbacks.length?(ratedFeedbacks.reduce((a,b)=>a+(b.average||0),0)/ratedFeedbacks.length).toFixed(1):0;
+                const low = ratedFeedbacks.filter(r=>r.average<3);
                 const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company&&d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
 
                 const myRatingsSnap = await db.collection('ratings').where('raterId','==',currentUser.uid).where('quarter','==',selectedQuarter).get();
@@ -979,7 +943,7 @@
                             <h2 style="font-size:20px;font-weight:700;color:#e2e8f0;">Dashboard <span style="color:#00bfff;">(${selectedQuarter})</span></h2>
                             <div style="display:flex;gap:10px;">
                                 <select style="padding:8px 12px;font-size:13px;" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select>
-                                <select style="padding:8px 12px;font-size:13px;" onchange="applyCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+                                <select style="padding:8px 12px;font-size:13px;" onchange="applyDashboardCompanyFilter(this.value)"><option value="all" ${dashboardCompanyFilter==='all'?'selected':''}>All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${dashboardCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>
                             </div>
                         </div>
                         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
@@ -1017,23 +981,48 @@
             }
             window.renderDashboard = renderDashboard;
             window.changeSelectedQuarter = (q) => { selectedQuarter=q; renderDashboard(); };
-            window.applyCompanyFilter = (v) => { selectedCompanyFilter=v; renderDashboard(); };
+            window.applyDashboardCompanyFilter = (v) => { dashboardCompanyFilter=v; renderDashboard(); };
 
             // ── EVALUATION FORM ──
+            window.selectRating = function(i,s) {
+                const inp = document.getElementById(`q${i}`);
+                if(inp) inp.value = s;
+                document.querySelectorAll(`.rating-btn[data-q="${i}"]`).forEach(b=>b.classList.remove('selected'));
+                document.querySelectorAll(`.rating-btn[data-q="${i}"][data-score="${s}"]`).forEach(b=>b.classList.add('selected'));
+            };
+
             window.startEvaluation = async (rid, rname, rrole) => {
                 if(rid===currentUser.uid) return showToast('Cannot self-evaluate',true);
                 let questionSet = (rrole==='manager'||rrole==='hr') ? appSettings.managerQuestions : appSettings.employeeQuestions;
+                // Ensure objects
+                questionSet = migrateQuestions(questionSet);
+
                 let qHtml = '';
                 questionSet.forEach((q,i)=>{
-                    qHtml += `<div style="margin-bottom:16px;padding:16px;border:1px solid rgba(0,150,255,0.15);border-radius:12px;background:rgba(255,255,255,0.02);">
-                        <div style="font-weight:600;font-size:14px;color:#cbd5e1;margin-bottom:10px;">${q}</div>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                            ${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}
-                            <span style="font-size:11px;color:#334155;margin-left:6px;">1=Poor · 5=Excellent</span>
-                        </div>
-                        <input type="hidden" id="q${i}" value="">
-                    </div>`;
+                    const isParagraph = q.type === 'paragraph';
+                    if(isParagraph) {
+                        qHtml += `<div style="margin-bottom:16px;padding:16px;border:1px solid rgba(168,85,247,0.25);border-radius:12px;background:rgba(168,85,247,0.04);">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                                <span style="font-weight:600;font-size:14px;color:#cbd5e1;flex:1;">${q.text}</span>
+                                <span class="q-type-badge-paragraph"><i class="fas fa-paragraph"></i> Open-ended</span>
+                            </div>
+                            <textarea id="q${i}" class="paragraph-answer-box" placeholder="Write your answer here…" rows="3"></textarea>
+                        </div>`;
+                    } else {
+                        qHtml += `<div style="margin-bottom:16px;padding:16px;border:1px solid rgba(0,150,255,0.15);border-radius:12px;background:rgba(255,255,255,0.02);">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                                <span style="font-weight:600;font-size:14px;color:#cbd5e1;flex:1;">${q.text}</span>
+                                <span class="q-type-badge-rating"><i class="fas fa-star"></i> Rating</span>
+                            </div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                                ${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}
+                                <span style="font-size:11px;color:#334155;margin-left:6px;">1=Poor · 5=Excellent</span>
+                            </div>
+                            <input type="hidden" id="q${i}" value="">
+                        </div>`;
+                    }
                 });
+
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;padding:24px 16px;">
                     <div style="max-width:750px;margin:0 auto;background:rgba(13,22,45,0.88);backdrop-filter:blur(20px);border:1px solid rgba(0,150,255,0.25);border-radius:20px;padding:28px;box-shadow:0 0 60px rgba(0,120,255,0.15);">
@@ -1057,36 +1046,52 @@
                         </form>
                     </div>
                 </div>`;
-                window.selectRating = (i,s) => {
-                    document.getElementById(`q${i}`).value = s;
-                    document.querySelectorAll(`.rating-btn[data-q="${i}"]`).forEach(b=>b.classList.remove('selected'));
-                    document.querySelectorAll(`.rating-btn[data-q="${i}"][data-score="${s}"]`).forEach(b=>b.classList.add('selected'));
-                };
+
                 document.getElementById('evalForm').addEventListener('submit',async(e)=>{
                     e.preventDefault();
-                    let total=0;
+                    let ratingTotal = 0;
+                    let ratingCount = 0;
                     const scores = [];
+
                     for(let i=0;i<questionSet.length;i++){
-                        const v=document.getElementById(`q${i}`).value;
-                        if(!v) return showToast(`Please rate question ${i+1}`,true);
-                        const scoreVal = parseInt(v);
-                        total += scoreVal;
-                        scores.push({ question: questionSet[i], score: scoreVal });
+                        const q = questionSet[i];
+                        const el = document.getElementById(`q${i}`);
+                        if(!el) continue;
+
+                        if(q.type === 'paragraph') {
+                            const answer = el.value.trim();
+                            if(!answer) return showToast(`Please answer question ${i+1}`,true);
+                            scores.push({ question: q.text, type: 'paragraph', answer });
+                        } else {
+                            const v = el.value;
+                            if(!v) return showToast(`Please rate question ${i+1}`,true);
+                            const scoreVal = parseInt(v);
+                            ratingTotal += scoreVal;
+                            ratingCount++;
+                            scores.push({ question: q.text, type: 'rating', score: scoreVal });
+                        }
                     }
-                    const avg=(total/questionSet.length).toFixed(1);
-                    await db.collection('ratings').add({
+
+                    const avg = ratingCount > 0 ? parseFloat((ratingTotal/ratingCount).toFixed(1)) : null;
+
+                    const payload = {
                         raterId: currentUser.uid,
                         raterName: currentUserData.name,
                         revieweeId: rid,
                         revieweeName: rname,
                         scores,
-                        total,
-                        average: parseFloat(avg),
                         company: currentUserData.company,
                         quarter: selectedQuarter,
                         comments: document.getElementById('comments').value||'',
                         createdAt: new Date().toISOString()
-                    });
+                    };
+                    // Only add average/total if there were rating questions
+                    if(avg !== null) {
+                        payload.total = ratingTotal;
+                        payload.average = avg;
+                    }
+
+                    await db.collection('ratings').add(payload);
                     await createNotification(rid,'You received new feedback from a peer','success','myresults');
                     showToast('Submitted anonymously! ✅');
                     renderDashboard();
@@ -1097,8 +1102,10 @@
             async function viewMyResults() {
                 showLoading(); await fetchNotifications();
                 const snap = await db.collection('ratings').where('revieweeId','==',currentUser.uid).get();
-                const ratings = snap.docs.map(d=>d.data());
-                const avg = ratings.length?(ratings.reduce((a,b)=>a+b.average,0)/ratings.length).toFixed(1):0;
+                const reviews = snap.docs.map(d=>d.data());
+                const ratingReviews = reviews.filter(r=>r.average !== undefined && r.average !== null);
+                const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):0;
+
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;">
                     ${renderNavbar('myresults')}
@@ -1111,31 +1118,46 @@
                             <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
                         </div>
                         <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:32px;">
+                            ${ratingReviews.length ? `
                             <div style="text-align:center;padding:24px;">
                                 <div style="font-size:64px;font-weight:700;color:#00bfff;filter:drop-shadow(0 0 18px rgba(0,191,255,0.4));">${avg}</div>
-                                <div style="color:#64748b;margin-top:8px;font-size:14px;">Average score from ${ratings.length} anonymous reviewer${ratings.length!==1?'s':''}</div>
-                            </div>
-                            ${ratings.filter(r=>r.comments).length?`
+                                <div style="color:#64748b;margin-top:8px;font-size:14px;">Average score from ${ratingReviews.length} anonymous reviewer${ratingReviews.length!==1?'s':''}</div>
+                            </div>` : `<div style="text-align:center;padding:24px;color:#475569;font-size:14px;">No rated feedback yet.</div>`}
+                            ${reviews.filter(r=>r.comments).length?`
                             <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
                                 <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Anonymous Comments:</h3>
-                                ${ratings.filter(r=>r.comments).map(r=>`
+                                ${reviews.filter(r=>r.comments).map(r=>`
                                 <div style="background:rgba(255,255,255,0.02);border-left:4px solid #0080ff;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
                                     <p style="font-style:italic;color:#94a3b8;margin:0 0 6px;">"${r.comments}"</p>
-                                    <p style="font-size:12px;color:#334155;margin:0;">${r.quarter||''} · Score: ${r.average}/5</p>
+                                    <p style="font-size:12px;color:#334155;margin:0;">${r.quarter||''} ${r.average !== undefined ? '· Score: '+r.average+'/5' : '· Open-ended'}</p>
                                 </div>`).join('')}
                             </div>`:''}
+                            ${reviews.some(r=>r.scores && r.scores.some(s=>s.type==='paragraph')) ? `
+                            <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
+                                <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Open-ended Responses:</h3>
+                                ${reviews.map(r=>{
+                                    if(!r.scores) return '';
+                                    const paraAnswers = r.scores.filter(s=>s.type==='paragraph');
+                                    if(!paraAnswers.length) return '';
+                                    return paraAnswers.map(s=>`
+                                    <div style="background:rgba(168,85,247,0.06);border-left:4px solid #a855f7;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+                                        <p style="font-size:12px;color:#c084fc;font-weight:600;margin:0 0 6px;">${s.question}</p>
+                                        <p style="color:#94a3b8;margin:0;font-size:13px;line-height:1.6;">${s.answer}</p>
+                                        <p style="font-size:11px;color:#334155;margin:6px 0 0;">${r.quarter||''}</p>
+                                    </div>`).join('');
+                                }).join('')}
+                            </div>` : ''}
                         </div>
                     </div>
                 </div>`;
             }
             window.viewMyResults = viewMyResults;
 
-            // ── ALL FEEDBACK ──
+            // ── ALL FEEDBACK (HR / Admin) ──
             window.showAllFeedback = async () => {
                 showLoading(); await fetchNotifications();
                 const ratings = await db.collection('ratings').get();
-                let feedbacks = ratings.docs.map(d=>d.data());
-                if(selectedCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===selectedCompanyFilter);
+                const feedbacks = ratings.docs.map(d=>d.data());
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;">
                     ${renderNavbar('feedback')}
@@ -1156,7 +1178,7 @@
                                         <span style="color:#334155;margin:0 8px;">→</span>
                                         <span style="font-weight:700;color:#e2e8f0;">${f.revieweeName}</span>
                                     </div>
-                                    <span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5</span>
+                                    ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
                                 </div>
                                 <p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 4px;">"${f.comments||'No comments'}"</p>
                                 <div style="font-size:11px;color:#334155;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
@@ -1171,7 +1193,9 @@
                 showLoading(); await fetchNotifications();
                 const allU = await db.collection('users').get();
                 let emps = allU.docs.filter(d=>d.data().role==='employee');
-                if(selectedCompanyFilter!=='all') emps = emps.filter(e=>e.data().company===selectedCompanyFilter);
+                if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
+                    emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
+                }
                 const hrRec = await db.collection('hrRecords').get();
                 const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
 
@@ -1185,7 +1209,10 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
                             <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-user-clock" style="color:#34d399;margin-right:10px;"></i>HR Input</h1>
                             <div style="display:flex;gap:10px;">
-                                <select style="padding:8px 12px;font-size:13px;" onchange="selectedCompanyFilter=this.value;window.showHrInputPage()"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${selectedCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>
+                                <select style="padding:8px 12px;font-size:13px;" onchange="window._hrCompanyFilter=this.value;window.showHrInputPage()">
+                                    <option value="all" ${window._hrCompanyFilter==='all'?'selected':''}>All Companies</option>
+                                    ${appSettings.companies.map(c=>`<option value="${c}" ${window._hrCompanyFilter===c?'selected':''}>${c}</option>`).join('')}
+                                </select>
                                 <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;">Back</button>
                             </div>
                         </div>
@@ -1227,7 +1254,7 @@
                 emps.forEach(e=>{
                     ['late','npsl','npl','awol','warningA','warningB','warningC'].forEach(f=>{
                         const inp=document.getElementById(`${f}-${e.id}`);
-                        if(inp) inp.addEventListener('input',()=>updateHrScoreDisplay(e.id));
+                        if(inp) inp.addEventListener('input',()=>{ updateHrScoreDisplay(e.id); });
                     });
                     updateHrScoreDisplay(e.id);
                 });
@@ -1245,11 +1272,13 @@
             window.saveAllHrData = async () => {
                 const allU = await db.collection('users').get();
                 let emps = allU.docs.filter(d=>d.data().role==='employee');
-                if(selectedCompanyFilter!=='all') emps = emps.filter(e=>e.data().company===selectedCompanyFilter);
+                if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
+                    emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
+                }
                 const batch = db.batch();
                 for(const e of emps) {
                     const id=e.id;
-                    const get=(f)=>parseInt(document.getElementById(`${f}-${id}`)?.value)||0;
+                    const get=(f)=>{ const el = document.getElementById(`${f}-${id}`); return el ? (parseInt(el.value)||0) : 0; };
                     const late=get('late'),npsl=get('npsl'),npl=get('npl'),awol=get('awol'),wa=get('warningA'),wb=get('warningB'),wc=get('warningC');
                     const ded=(late*appSettings.deductions.late)+(npsl*appSettings.deductions.npsl)+(npl*appSettings.deductions.npl)+(awol*appSettings.deductions.awol)+(wa*appSettings.deductions.warningA)+(wb*appSettings.deductions.warningB)+(wc*appSettings.deductions.warningC);
                     const score=Math.max(0,100-ded);
@@ -1262,17 +1291,28 @@
             };
 
             // ── QUESTION MANAGER ──
+            // Renders the question list for the manager UI
+            function renderQuestionListHTML(type) {
+                const questions = migrateQuestions(type==='employee' ? appSettings.employeeQuestions : appSettings.managerQuestions);
+                if(!questions.length) return '<p style="color:#475569;font-size:13px;padding:10px;">No questions yet. Click Add to create one.</p>';
+                return questions.map((q,idx)=>{
+                    const isParagraph = q.type === 'paragraph';
+                    return `
+                    <div class="question-item" draggable="true" data-index="${idx}" data-type="${type}" style="display:flex;align-items:center;gap:10px;">
+                        <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
+                        <input type="text" value="${q.text.replace(/"/g,'&quot;')}" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
+                        <button type="button" title="Toggle question type"
+                            onclick="toggleQuestionType('${type}',${idx})"
+                            style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
+                            <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
+                        </button>
+                        <button type="button" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </div>`;
+                }).join('');
+            }
+
             window.showQuestionManager = async () => {
                 await fetchNotifications();
-                const renderQuestionList = (type) => {
-                    const questions = type==='employee' ? appSettings.employeeQuestions : appSettings.managerQuestions;
-                    return questions.map((q,idx)=>`
-                        <div class="question-item" draggable="true" data-index="${idx}" data-type="${type}" style="display:flex;align-items:center;gap:10px;">
-                            <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
-                            <input type="text" value="${q.replace(/"/g,'&quot;')}" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
-                            <button onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
-                        </div>`).join('');
-                };
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;">
                     ${renderNavbar('questions')}
@@ -1281,30 +1321,47 @@
                             <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-list-check" style="color:#c084fc;margin-right:10px;"></i>Evaluation Questions Manager</h1>
                             <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
                         </div>
+
+                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:16px;">
+                            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                <span class="q-type-badge-rating"><i class="fas fa-star"></i> Rating (1–5)</span>
+                                <span style="color:#475569;font-size:12px;">— reviewer selects a score</span>
+                                <span class="q-type-badge-paragraph"><i class="fas fa-paragraph"></i> Paragraph</span>
+                                <span style="color:#475569;font-size:12px;">— reviewer writes a free-text answer</span>
+                                <span style="color:#334155;font-size:12px;margin-left:auto;">Click the badge on any question to toggle its type.</span>
+                            </div>
+                        </div>
+
                         <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
                             <div style="display:flex;gap:10px;margin-bottom:20px;">
                                 <button id="tabEmployee" onclick="switchQuestionTab('employee')" style="padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">Employee Questions</button>
-                                <button id="tabManager" onclick="switchQuestionTab('manager')" style="padding:9px 18px;border-radius:10px;background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;">Manager Questions</button>
+                                <button id="tabManager" onclick="switchQuestionTab('manager')" style="padding:9px 18px;border-radius:10px;background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;">Manager Questions</button>
                             </div>
                             <div id="employeeQuestionsPanel">
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
                                     <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Employee Evaluation Questions</h3>
-                                    <button onclick="addQuestion('employee')" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>
+                                    <div style="display:flex;gap:8px;">
+                                        <button onclick="addQuestion('employee','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
+                                        <button onclick="addQuestion('employee','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
+                                    </div>
                                 </div>
-                                <div id="employeeQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'employee')">${renderQuestionList('employee')}</div>
+                                <div id="employeeQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'employee')">${renderQuestionListHTML('employee')}</div>
                             </div>
                             <div id="managerQuestionsPanel" class="hidden">
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
                                     <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Manager Evaluation Questions</h3>
-                                    <button onclick="addQuestion('manager')" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>
+                                    <div style="display:flex;gap:8px;">
+                                        <button onclick="addQuestion('manager','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
+                                        <button onclick="addQuestion('manager','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
+                                    </div>
                                 </div>
-                                <div id="managerQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'manager')">${renderQuestionList('manager')}</div>
+                                <div id="managerQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'manager')">${renderQuestionListHTML('manager')}</div>
                             </div>
                             <div style="margin-top:20px;display:flex;gap:12px;">
                                 <button onclick="saveQuestionsFromUI()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-save" style="margin-right:8px;"></i>Save Changes</button>
                                 <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 22px;font-size:14px;cursor:pointer;">Cancel</button>
                             </div>
-                            <p style="font-size:12px;color:#334155;margin-top:10px;"><i class="fas fa-grip-vertical" style="margin-right:4px;"></i>Drag to reorder. Click Save to apply changes.</p>
+                            <p style="font-size:12px;color:#334155;margin-top:10px;"><i class="fas fa-grip-vertical" style="margin-right:4px;"></i>Drag to reorder. Click the type badge to toggle Rating ↔ Paragraph. Click Save to apply.</p>
                         </div>
                     </div>
                 </div>`;
@@ -1318,18 +1375,41 @@
                 document.getElementById('tabManager').style.cssText = `padding:9px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;background:${type==='manager'?'linear-gradient(135deg,#0055b3,#00bfff)':'rgba(255,255,255,0.07)'};color:${type==='manager'?'#fff':'#94a3b8'};`;
             };
 
-            window.addQuestion = (type) => {
+            // Toggle rating ↔ paragraph for an existing question item in the DOM
+            window.toggleQuestionType = (type, idx) => {
                 const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                if(!container) return;
+                const item = container.querySelector(`.question-item[data-index="${idx}"]`);
+                if(!item) return;
+                const btn = item.querySelector('button[title="Toggle question type"]');
+                const isParagraph = btn.innerText.trim().startsWith('Paragraph');
+                const newType = isParagraph ? 'rating' : 'paragraph';
+                // Update button appearance
+                btn.innerHTML = `<i class="fas fa-${newType==='paragraph'?'paragraph':'star'}" style="margin-right:4px;"></i>${newType==='paragraph'?'Paragraph':'Rating'}`;
+                btn.style.background = newType==='paragraph' ? 'rgba(168,85,247,0.2)' : 'rgba(0,191,255,0.15)';
+                btn.style.color = newType==='paragraph' ? '#d8b4fe' : '#38bdf8';
+            };
+
+            window.addQuestion = (type, qtype='rating') => {
+                const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                if(!container) return;
                 const idx = container.querySelectorAll('.question-item').length;
+                const isParagraph = qtype === 'paragraph';
                 const newItem = document.createElement('div');
                 newItem.className='question-item';
                 newItem.style.cssText='display:flex;align-items:center;gap:10px;';
                 newItem.draggable=true;
                 newItem.dataset.index=idx;
                 newItem.dataset.type=type;
-                newItem.innerHTML=`<span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
-                    <input type="text" value="New Question" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
-                    <button onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
+                newItem.innerHTML=`
+                    <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
+                    <input type="text" value="New ${isParagraph?'Paragraph':'Rating'} Question" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
+                    <button type="button" title="Toggle question type"
+                        onclick="toggleQuestionType('${type}',${idx})"
+                        style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
+                        <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
+                    </button>
+                    <button type="button" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
                 container.appendChild(newItem);
                 setupDragListeners(newItem);
                 reindexQuestions(type);
@@ -1344,14 +1424,18 @@
                     item.dataset.index=newIdx;
                     const input=item.querySelector('input');
                     if(input) input.dataset.qindex=newIdx;
-                    const btn=item.querySelector('button');
-                    if(btn) btn.setAttribute('onclick',`deleteQuestion('${type}',${newIdx})`);
+                    // Update onclick for toggle and delete buttons
+                    const toggleBtn=item.querySelector('button[title="Toggle question type"]');
+                    if(toggleBtn) toggleBtn.setAttribute('onclick',`toggleQuestionType('${type}',${newIdx})`);
+                    const deleteBtn=item.querySelector('button:not([title])');
+                    if(deleteBtn) deleteBtn.setAttribute('onclick',`deleteQuestion('${type}',${newIdx})`);
                 });
             }
 
             window.deleteQuestion = (type, idx) => {
                 if(!confirm('Delete this question?')) return;
                 const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                if(!container) return;
                 const items = container.querySelectorAll('.question-item');
                 if(items.length<=1) return showToast('Cannot delete the last question',true);
                 const actualItem = container.querySelector(`.question-item[data-index="${idx}"]`);
@@ -1366,25 +1450,38 @@
             }
             window.handleDrop = (e, targetType) => {
                 e.preventDefault();
-                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                if(data.type!==targetType) return;
-                const container = document.getElementById(targetType==='employee'?'employeeQuestionsList':'managerQuestionsList');
-                const items = [...container.querySelectorAll('.question-item')];
-                const dragIndex = parseInt(data.index);
-                const dropTarget = e.target.closest('.question-item');
-                if(!dropTarget) return;
-                const dropIndex = parseInt(dropTarget.dataset.index);
-                if(dragIndex===dropIndex) return;
-                if(dragIndex<dropIndex) { dropTarget.parentNode.insertBefore(items[dragIndex],dropTarget.nextSibling); }
-                else { dropTarget.parentNode.insertBefore(items[dragIndex],dropTarget); }
-                reindexQuestions(targetType);
+                try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if(data.type!==targetType) return;
+                    const container = document.getElementById(targetType==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                    const items = [...container.querySelectorAll('.question-item')];
+                    const dragIndex = parseInt(data.index);
+                    const dropTarget = e.target.closest('.question-item');
+                    if(!dropTarget) return;
+                    const dropIndex = parseInt(dropTarget.dataset.index);
+                    if(dragIndex===dropIndex) return;
+                    if(dragIndex<dropIndex) { dropTarget.parentNode.insertBefore(items[dragIndex],dropTarget.nextSibling); }
+                    else { dropTarget.parentNode.insertBefore(items[dragIndex],dropTarget); }
+                    reindexQuestions(targetType);
+                } catch(err) { console.error('Drop error',err); }
             };
 
             window.saveQuestionsFromUI = () => {
-                const empInputs = document.querySelectorAll('#employeeQuestionsList input');
-                const mgrInputs = document.querySelectorAll('#managerQuestionsList input');
-                appSettings.employeeQuestions = [...empInputs].map(inp=>inp.value.trim()).filter(v=>v);
-                appSettings.managerQuestions  = [...mgrInputs].map(inp=>inp.value.trim()).filter(v=>v);
+                ['employee','manager'].forEach(type => {
+                    const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                    if(!container) return;
+                    const items = [...container.querySelectorAll('.question-item')];
+                    const questions = items.map(item => {
+                        const input = item.querySelector('input');
+                        const toggleBtn = item.querySelector('button[title="Toggle question type"]');
+                        const text = input ? input.value.trim() : '';
+                        // Determine type from button label text
+                        const isParagraph = toggleBtn && toggleBtn.innerText.trim().startsWith('Paragraph');
+                        return { text, type: isParagraph ? 'paragraph' : 'rating' };
+                    }).filter(q => q.text.length > 0);
+                    if(type==='employee') appSettings.employeeQuestions = questions;
+                    else appSettings.managerQuestions = questions;
+                });
                 saveSettings();
             };
 
@@ -1459,16 +1556,16 @@
                 if(!file) return showToast('Select a CSV file first',true);
                 const resultEl = document.getElementById('importResult');
                 const csvText = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = () => reject(new Error('Failed to read file'));
-                    reader.readAsText(file);
+                    const r = new FileReader();
+                    r.onload = (e) => resolve(e.target.result);
+                    r.onerror = () => reject(new Error('Failed to read file'));
+                    r.readAsText(file);
                 });
                 const lines = csvText.split('\n').filter(l=>l.trim());
                 if(lines.length<2) return showToast('CSV must have a header row',true);
                 const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
                 if(!['name','email','role','company'].every(r=>headers.includes(r))) return showToast('CSV must have columns: Name, Email, Role, Company',true);
-                let created=0, failed=0;
+                let created=0, failed=0, failedList=[];
                 resultEl.innerHTML = `<span style="color:#38bdf8;">Importing... (${lines.length-1} records)</span>`;
                 for(let i=1;i<lines.length;i++){
                     const vals = lines[i].split(',').map(v=>v.trim());
@@ -1476,10 +1573,17 @@
                     const rec = {};
                     headers.forEach((h,idx)=>rec[h]=vals[idx]||'');
                     const pass = rec.password||'password123';
-                    try { await createUser(rec.email,pass,rec.name,rec.company,rec.role); created++; }
-                    catch(err){ failed++; console.error('Import row failed:',err); }
+                    try {
+                        await createUser(rec.email,pass,rec.name,rec.company,rec.role);
+                        created++;
+                        resultEl.innerHTML = `<span style="color:#38bdf8;">Importing... ${created} created so far</span>`;
+                    } catch(err) {
+                        failed++;
+                        failedList.push(rec.email || `Row ${i+1}`);
+                        console.error('Import row failed:',err);
+                    }
                 }
-                resultEl.innerHTML = `<span style="color:#34d399;">✅ Created: ${created}</span> &nbsp; <span style="color:#f87171;">❌ Failed: ${failed}</span>`;
+                resultEl.innerHTML = `<span style="color:#34d399;">✅ Created: ${created}</span> &nbsp; <span style="color:#f87171;">❌ Failed: ${failed}</span>${failedList.length?`<div style="color:#f87171;font-size:12px;margin-top:6px;">Failed: ${failedList.join(', ')}</div>`:''}`;
                 showToast(`Import complete: ${created} users created`);
             };
 
@@ -1530,7 +1634,7 @@
 
             const loadingTimeout = setTimeout(() => {
                 const app=document.getElementById('app');
-                if(app&&(app.innerHTML.includes('loadingSpinner')||app.innerHTML.includes('Connecting'))) {
+                if(app&&(app.innerHTML.includes('loadingSpinner')||app.innerHTML.includes('Initializing'))) {
                     setStatus('Timed out. Showing login...');
                     setTimeout(renderLogin,1000);
                 }
@@ -1542,7 +1646,6 @@
                 try {
                     if(user) {
                         setStatus('User found, loading profile...');
-                        initDemo().catch(e=>console.warn('initDemo (non-fatal):',e));
                         const doc = await db.collection('users').doc(user.uid).get();
                         if(doc.exists) {
                             currentUserData = { id:doc.id,...doc.data() };
