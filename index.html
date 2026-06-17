@@ -82,7 +82,6 @@
         .score-excellent { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
         .score-good      { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
         .score-poor      { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-        /* ── UPDATED: wider rating buttons to fit Filipino labels ── */
         .rating-btn {
             min-width: 56px; height: 40px; border-radius: 10px;
             border: 1px solid rgba(0,150,255,0.3);
@@ -187,25 +186,19 @@
 </head>
 <body>
     <div id="app">
-        <div style="text-align:center; padding: 80px 40px; font-family: sans-serif; min-height: 100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-            <div style="margin-bottom:24px;">
-                <i class="fas fa-chalkboard-user" style="font-size:48px; color:#00bfff; filter:drop-shadow(0 0 18px rgba(0,191,255,0.5));"></i>
-            </div>
-            <div id="loadingSpinner" style="border:3px solid rgba(0,150,255,0.15); border-top:3px solid #00bfff; border-radius:50%; width:44px; height:44px; animation:spin 0.9s linear infinite; margin:0 auto 20px; box-shadow: 0 0 16px rgba(0,191,255,0.3);"></div>
-            <style>@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}</style>
-            <p id="loadingStatus" style="color:#7dd3fc; font-size:15px; font-weight:500;">Initializing...</p>
-            <p id="loadingError" style="color:#f87171; font-size:13px; margin-top:10px; display:none;"></p>
+        <!-- FIX: Safe initial loading screen that does NOT call renderNavbar (currentUserData is null here) -->
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;">
+            <div class="loading-spinner"></div>
+            <p id="loadingStatus" style="color:#7dd3fc;margin-top:12px;font-size:14px;">Initializing...</p>
+            <p id="loadingError" style="color:#f87171;margin-top:8px;font-size:13px;display:none;"></p>
         </div>
     </div>
     <script>
-        window.onerror = function(msg, src, line, col, err) {
-            const el = document.getElementById('loadingError');
-            if(el) { el.style.display='block'; el.innerText = '❌ Error: ' + msg + (src ? ' (' + src.split('/').pop() + ':' + line + ')' : ''); }
-            return false;
-        };
+        window.addEventListener('error', function(e) {
+            showToast('Unexpected error: ' + (e.message || 'Unknown'), true);
+        });
         window.addEventListener('unhandledrejection', function(e) {
-            const el = document.getElementById('loadingError');
-            if(el) { el.style.display='block'; el.innerText = '❌ Unhandled: ' + (e.reason?.message || e.reason || 'Unknown error'); }
+            showToast('Unhandled promise: ' + (e.reason?.message || e.reason), true);
         });
     </script>
     <script>
@@ -231,7 +224,6 @@
             let unreadNotificationCount = 0;
             let notifications = [];
 
-            // ── RATING SCALE (Filipino) ──
             const RATING_LABELS = {
                 1: 'Hindi kailanman',
                 2: 'Minsan',
@@ -315,12 +307,25 @@
                 document.body.appendChild(t);
                 setTimeout(()=>t.remove(),3000);
             }
+
+            // FIX: showLoading now safely renders without calling renderNavbar when user isn't logged in
             function showLoading(id='app') {
-                document.getElementById(id).innerHTML = `
-                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;">
-                    <div class="loading-spinner"></div>
-                    <p style="color:#7dd3fc;margin-top:12px;font-size:14px;">Loading...</p>
-                </div>`;
+                const container = document.getElementById(id);
+                if (!container) return;
+                if (currentUserData && typeof renderNavbar === 'function') {
+                    container.innerHTML = `
+                        ${renderNavbar('loading')}
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;">
+                            <div class="loading-spinner"></div>
+                            <p style="color:#7dd3fc;margin-top:12px;font-size:14px;">Loading...</p>
+                        </div>`;
+                } else {
+                    container.innerHTML = `
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;">
+                            <div class="loading-spinner"></div>
+                            <p style="color:#7dd3fc;margin-top:12px;font-size:14px;">Loading...</p>
+                        </div>`;
+                }
             }
 
             async function loadSettings() {
@@ -360,12 +365,14 @@
                     notifications = notifications.slice(0,20);
                 }
                 unreadNotificationCount = notifications.filter(n=>!n.read).length;
+                // FIX: always update the badge after fetching
+                updateBadge();
             }
             async function createNotification(uid, msg, type='info', link='#') {
                 await db.collection('notifications').add({ userId:uid, message:msg, type, link, read:false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-                if(uid===currentUser?.uid) { await fetchNotifications(); updateBadge(); }
+                if(uid===currentUser?.uid) { await fetchNotifications(); }
             }
-            async function markRead(id) { await db.collection('notifications').doc(id).update({read:true}); await fetchNotifications(); updateBadge(); }
+            async function markRead(id) { await db.collection('notifications').doc(id).update({read:true}); await fetchNotifications(); }
             function updateBadge() { const b = document.getElementById('notificationBadge'); if(b) { b.innerText = unreadNotificationCount; b.style.display = unreadNotificationCount>0?'flex':'none'; } }
 
             window.toggleNotificationDropdown = function() {
@@ -524,57 +531,63 @@
 
             // ── USER DIRECTORY ──
             async function renderUserDirectory() {
-                showLoading(); await fetchNotifications();
-                const allU = await db.collection('users').get();
-                const allR = await db.collection('ratings').get();
-                const scores = {};
-                allR.docs.forEach(r=>{ const d=r.data(); if(d.average !== undefined && !scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; if(d.average !== undefined){ scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; } });
-                const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc&&sc.count?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
-                let filtered = users;
-                if(userDirCompanyFilter!=='all') filtered = users.filter(u=>u.company===userDirCompanyFilter);
-                if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company);
-                const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr');
-                const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr');
-                const roleBorderColor = {admin:'#a855f7',hr:'#22c55e',manager:'#00bfff',employee:'#334155'};
+                try {
+                    showLoading(); await fetchNotifications();
+                    const allU = await db.collection('users').get();
+                    const allR = await db.collection('ratings').get();
+                    const scores = {};
+                    allR.docs.forEach(r=>{ const d=r.data(); if(d.average !== undefined){ if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; } });
+                    const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc&&sc.count?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
+                    let filtered = users;
+                    if(userDirCompanyFilter!=='all') filtered = users.filter(u=>u.company===userDirCompanyFilter);
+                    if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company);
+                    const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr');
+                    const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr');
+                    const roleBorderColor = {admin:'#a855f7',hr:'#22c55e',manager:'#00bfff',employee:'#334155'};
 
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('users')}
-                    <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                            <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-users" style="color:#00bfff;margin-right:10px;"></i>User Directory</h1>
-                            <div style="display:flex;gap:10px;">
-                                ${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${userDirCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>`:''}
-                                ${canCreate?`<button onclick="showCreateUserModal()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(16,185,129,0.25);"><i class="fas fa-plus" style="margin-right:6px;"></i>Add User</button>`:''}
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('users')}
+                        <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-users" style="color:#00bfff;margin-right:10px;"></i>User Directory</h1>
+                                <div style="display:flex;gap:10px;">
+                                    ${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${userDirCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>`:''}
+                                    ${canCreate?`<button onclick="showCreateUserModal()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(16,185,129,0.25);"><i class="fas fa-plus" style="margin-right:6px;"></i>Add User</button>`:''}
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;">
+                                ${filtered.map(u=>`
+                                <div class="user-card" style="padding:20px;border-left:4px solid ${roleBorderColor[u.role]||'#334155'};">
+                                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                                        <div>
+                                            <h3 style="font-weight:700;font-size:16px;color:#e2e8f0;margin:0 0 4px;">${u.name}</h3>
+                                            <p style="font-size:12px;color:#64748b;margin:0;">${u.email}</p>
+                                        </div>
+                                        <span style="background:rgba(255,255,255,0.07);color:#94a3b8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;border:1px solid rgba(255,255,255,0.08);">${u.role}</span>
+                                    </div>
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                        <span class="company-badge company-${u.company}">${u.company}</span>
+                                        <div style="text-align:right;">
+                                            <div style="font-size:26px;font-weight:700;color:${u.avgScore!=='N/A'&&u.avgScore>=4?'#34d399':'#00bfff'};">${u.avgScore}</div>
+                                            <div style="font-size:11px;color:#475569;">${u.reviewCount} reviews</div>
+                                        </div>
+                                    </div>
+                                    <div style="display:flex;gap:8px;">
+                                        <button onclick="viewUserDetails('${u.id}')" style="flex:1;background:rgba(0,191,255,0.12);color:#38bdf8;border:1px solid rgba(0,191,255,0.25);border-radius:8px;padding:6px 0;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,191,255,0.22)'" onmouseout="this.style.background='rgba(0,191,255,0.12)'"><i class="fas fa-eye" style="margin-right:4px;"></i>View</button>
+                                        ${canEdit&&u.id!==currentUser.uid?`
+                                        <button onclick="editUser('${u.id}')" style="background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;transition:all 0.2s;"><i class="fas fa-edit"></i></button>
+                                        <button onclick="deleteUserAccount('${u.id}')" style="background:rgba(239,68,68,0.12);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;transition:all 0.2s;"><i class="fas fa-trash"></i></button>`:''}
+                                    </div>
+                                </div>`).join('')}
                             </div>
                         </div>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;">
-                            ${filtered.map(u=>`
-                            <div class="user-card" style="padding:20px;border-left:4px solid ${roleBorderColor[u.role]||'#334155'};">
-                                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-                                    <div>
-                                        <h3 style="font-weight:700;font-size:16px;color:#e2e8f0;margin:0 0 4px;">${u.name}</h3>
-                                        <p style="font-size:12px;color:#64748b;margin:0;">${u.email}</p>
-                                    </div>
-                                    <span style="background:rgba(255,255,255,0.07);color:#94a3b8;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;border:1px solid rgba(255,255,255,0.08);">${u.role}</span>
-                                </div>
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                                    <span class="company-badge company-${u.company}">${u.company}</span>
-                                    <div style="text-align:right;">
-                                        <div style="font-size:26px;font-weight:700;color:${u.avgScore!=='N/A'&&u.avgScore>=4?'#34d399':'#00bfff'};">${u.avgScore}</div>
-                                        <div style="font-size:11px;color:#475569;">${u.reviewCount} reviews</div>
-                                    </div>
-                                </div>
-                                <div style="display:flex;gap:8px;">
-                                    <button onclick="viewUserDetails('${u.id}')" style="flex:1;background:rgba(0,191,255,0.12);color:#38bdf8;border:1px solid rgba(0,191,255,0.25);border-radius:8px;padding:6px 0;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(0,191,255,0.22)'" onmouseout="this.style.background='rgba(0,191,255,0.12)'"><i class="fas fa-eye" style="margin-right:4px;"></i>View</button>
-                                    ${canEdit&&u.id!==currentUser.uid?`
-                                    <button onclick="editUser('${u.id}')" style="background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;transition:all 0.2s;"><i class="fas fa-edit"></i></button>
-                                    <button onclick="deleteUserAccount('${u.id}')" style="background:rgba(239,68,68,0.12);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;transition:all 0.2s;"><i class="fas fa-trash"></i></button>`:''}
-                                </div>
-                            </div>`).join('')}
-                        </div>
-                    </div>
-                </div>`;
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load user directory: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('users')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading users. <button onclick="renderUserDirectory()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             }
             window.renderUserDirectory = renderUserDirectory;
 
@@ -704,108 +717,113 @@
 
             // ── RESULTS REPORT ──
             window.showResultsReport = async () => {
-                showLoading(); await fetchNotifications();
-                const allU = await db.collection('users').get();
-                const allR = await db.collection('ratings').get();
-                const hrRec = await db.collection('hrRecords').get();
+                try {
+                    showLoading(); await fetchNotifications();
+                    const allU = await db.collection('users').get();
+                    const allR = await db.collection('ratings').get();
+                    const hrRec = await db.collection('hrRecords').get();
 
-                const selQ = window._reportQuarterFilter || 'all';
-                const cf   = window._reportCompanyFilter || 'all';
-                const rf   = window._reportRoleFilter    || 'all';
-                const sf   = (window._reportSearch || '').toLowerCase();
+                    const selQ = window._reportQuarterFilter || 'all';
+                    const cf   = window._reportCompanyFilter || 'all';
+                    const rf   = window._reportRoleFilter    || 'all';
+                    const sf   = (window._reportSearch || '').toLowerCase();
 
-                let filtR = allR.docs;
-                if(selQ!=='all') filtR = filtR.filter(d=>d.data().quarter===selQ);
-                const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
-                const peer = {};
-                filtR.forEach(r=>{
-                    const d=r.data();
-                    if(d.average !== undefined) {
-                        if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0};
-                        peer[d.revieweeId].total+=d.average;
-                        peer[d.revieweeId].count++;
+                    let filtR = allR.docs;
+                    if(selQ!=='all') filtR = filtR.filter(d=>d.data().quarter===selQ);
+                    const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
+                    const peer = {};
+                    filtR.forEach(r=>{
+                        const d=r.data();
+                        if(d.average !== undefined) {
+                            if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0};
+                            peer[d.revieweeId].total+=d.average;
+                            peer[d.revieweeId].count++;
+                        }
+                    });
+                    const results = [];
+                    for(const u of allU.docs) {
+                        const user=u.data();
+                        if(user.role==='admin') continue;
+                        const p=peer[u.id];
+                        if(!p||p.count===0) continue;
+                        const rawOp=(p.total/p.count)*20;
+                        const op=Math.min(100, rawOp);
+                        const hr=hrMap[u.id];
+                        let hrScore=null;
+                        if(hr) {
+                            const ded=(hr.late||0)*appSettings.deductions.late+(hr.npsl||0)*appSettings.deductions.npsl+(hr.npl||0)*appSettings.deductions.npl+(hr.awol||0)*appSettings.deductions.awol+(hr.warningA||0)*appSettings.deductions.warningA+(hr.warningB||0)*appSettings.deductions.warningB+(hr.warningC||0)*appSettings.deductions.warningC;
+                            hrScore=Math.max(0,100-ded);
+                        }
+                        const fin=hrScore!==null?(op*appSettings.operationWeight)+(hrScore*appSettings.hrWeight):op;
+                        results.push({id:u.id,name:user.name,company:user.company,role:user.role,op:op.toFixed(1),hr:hrScore!==null?hrScore:'N/A',fin:fin.toFixed(1),cnt:p.count,noHrRecord:hrScore===null});
                     }
-                });
-                const results = [];
-                for(const u of allU.docs) {
-                    const user=u.data();
-                    if(user.role==='admin') continue;
-                    const p=peer[u.id];
-                    if(!p||p.count===0) continue;
-                    const rawOp=(p.total/p.count)*20;
-                    const op=Math.min(100, rawOp);
-                    const hr=hrMap[u.id];
-                    let hrScore=null;
-                    if(hr) {
-                        const ded=(hr.late||0)*appSettings.deductions.late+(hr.npsl||0)*appSettings.deductions.npsl+(hr.npl||0)*appSettings.deductions.npl+(hr.awol||0)*appSettings.deductions.awol+(hr.warningA||0)*appSettings.deductions.warningA+(hr.warningB||0)*appSettings.deductions.warningB+(hr.warningC||0)*appSettings.deductions.warningC;
-                        hrScore=Math.max(0,100-ded);
-                    }
-                    const fin=hrScore!==null?(op*appSettings.operationWeight)+(hrScore*appSettings.hrWeight):op;
-                    results.push({id:u.id,name:user.name,company:user.company,role:user.role,op:op.toFixed(1),hr:hrScore!==null?hrScore:'N/A',fin:fin.toFixed(1),cnt:p.count,noHrRecord:hrScore===null});
+                    let filtered=results;
+                    if(cf!=='all') filtered=filtered.filter(r=>r.company===cf);
+                    if(rf!=='all') filtered=filtered.filter(r=>r.role===rf);
+                    if(sf) filtered=filtered.filter(r=>r.name.toLowerCase().includes(sf));
+                    filtered.sort((a,b)=>parseFloat(b.fin)-parseFloat(a.fin));
+                    const getClass=(s)=>s>=85?'score-excellent':s>=70?'score-good':'score-poor';
+                    const qOpts=generateQuarterOptions();
+
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('report')}
+                        <div style="max-width:1300px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-chart-bar" style="color:#a5b4fc;margin-right:10px;"></i>Performance Results Report</h1>
+                                <button onclick="exportResultsToCSV()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>Export CSV</button>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:20px;margin-bottom:20px;">
+                                <h3 style="color:#7dd3fc;font-size:14px;font-weight:700;margin-bottom:14px;">🔍 Filters</h3>
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                                    <select style="padding:9px 12px;font-size:13px;" onchange="window._reportCompanyFilter=this.value;window.showResultsReport()"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${cf===c?'selected':''}>${c}</option>`).join('')}</select>
+                                    <select style="padding:9px 12px;font-size:13px;" onchange="window._reportRoleFilter=this.value;window.showResultsReport()"><option value="all" ${rf==='all'?'selected':''}>All Roles</option><option value="employee" ${rf==='employee'?'selected':''}>Employee</option><option value="manager" ${rf==='manager'?'selected':''}>Manager</option><option value="hr" ${rf==='hr'?'selected':''}>HR</option></select>
+                                    <select style="padding:9px 12px;font-size:13px;" onchange="window._reportQuarterFilter=this.value;window.showResultsReport()"><option value="all" ${selQ==='all'?'selected':''}>All Quarters</option>${qOpts.map(q=>`<option value="${q}" ${selQ===q?'selected':''}>${q}</option>`).join('')}</select>
+                                    <input type="text" placeholder="Search by name..." style="padding:9px 12px;font-size:13px;" value="${window._reportSearch||''}" oninput="window._reportSearch=this.value;window.showResultsReport()">
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px;">
+                                <div style="background:linear-gradient(135deg,#0055b3,#0099e6);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Evaluated Employees</div></div>
+                                <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Avg Final Score</div></div>
+                                <div style="background:linear-gradient(135deg,#6d28d9,#a855f7);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Outstanding (85+)</div></div>
+                                <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Needs Improvement (&lt;70)</div></div>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;overflow:hidden;">
+                                <div style="overflow-x:auto;">
+                                    <table style="width:100%;font-size:13px;">
+                                        <thead><tr style="background:rgba(0,120,255,0.06);">
+                                            <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Employee</th>
+                                            <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Company</th>
+                                            <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Role</th>
+                                            <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Peer Rating</th>
+                                            <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">HR Score</th>
+                                            <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Final Score</th>
+                                            <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Rating</th>
+                                            <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Action</th>
+                                        </tr></thead>
+                                        <tbody>${filtered.map(r=>`<tr style="border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;" onmouseover="this.style.background='rgba(0,120,255,0.06)'" onmouseout="this.style.background='transparent'">
+                                            <td style="padding:12px 16px;font-weight:600;color:#e2e8f0;">${r.name}</td>
+                                            <td style="padding:12px 16px;"><span class="company-badge company-${r.company}">${r.company}</span></td>
+                                            <td style="padding:12px 16px;color:#94a3b8;text-transform:capitalize;">${r.role}</td>
+                                            <td style="padding:12px 16px;text-align:center;font-weight:700;color:#38bdf8;">${r.op}/100</td>
+                                            <td style="padding:12px 16px;text-align:center;font-weight:700;color:#94a3b8;">${r.hr==='N/A'?'<span style="color:#334155;font-size:11px;">No HR record</span>':r.hr+'/100'}</td>
+                                            <td style="padding:12px 16px;text-align:center;"><span class="${getClass(parseFloat(r.fin))}" style="padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">${r.fin}/100${r.noHrRecord?'<span title="HR record missing – score based on peer rating only" style="margin-left:4px;cursor:help;">⚠️</span>':''}</span></td>
+                                            <td style="padding:12px 16px;text-align:center;font-size:13px;">${parseFloat(r.fin)>=85?'🌟 Outstanding':parseFloat(r.fin)>=70?'✅ Satisfactory':'⚠️ Needs Improvement'}</td>
+                                            <td style="padding:12px 16px;text-align:center;"><button onclick="viewUserDetails('${r.id}')" style="color:#38bdf8;background:rgba(0,191,255,0.1);border:1px solid rgba(0,191,255,0.2);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:600;">View</button></td>
+                                        </tr>`).join('')}</tbody>
+                                    </table>
+                                </div>
+                                ${filtered.length===0?'<div style="padding:40px;text-align:center;color:#334155;font-size:14px;">No evaluated employees found.</div>':''}
+                            </div>
+                        </div>
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load report: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('report')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading report. <button onclick="showResultsReport()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
                 }
-                let filtered=results;
-                if(cf!=='all') filtered=filtered.filter(r=>r.company===cf);
-                if(rf!=='all') filtered=filtered.filter(r=>r.role===rf);
-                if(sf) filtered=filtered.filter(r=>r.name.toLowerCase().includes(sf));
-                filtered.sort((a,b)=>parseFloat(b.fin)-parseFloat(a.fin));
-                const getClass=(s)=>s>=85?'score-excellent':s>=70?'score-good':'score-poor';
-                const qOpts=generateQuarterOptions();
-
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('report')}
-                    <div style="max-width:1300px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                            <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-chart-bar" style="color:#a5b4fc;margin-right:10px;"></i>Performance Results Report</h1>
-                            <button onclick="exportResultsToCSV()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>Export CSV</button>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:20px;margin-bottom:20px;">
-                            <h3 style="color:#7dd3fc;font-size:14px;font-weight:700;margin-bottom:14px;">🔍 Filters</h3>
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-                                <select style="padding:9px 12px;font-size:13px;" onchange="window._reportCompanyFilter=this.value;window.showResultsReport()"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${cf===c?'selected':''}>${c}</option>`).join('')}</select>
-                                <select style="padding:9px 12px;font-size:13px;" onchange="window._reportRoleFilter=this.value;window.showResultsReport()"><option value="all" ${rf==='all'?'selected':''}>All Roles</option><option value="employee" ${rf==='employee'?'selected':''}>Employee</option><option value="manager" ${rf==='manager'?'selected':''}>Manager</option><option value="hr" ${rf==='hr'?'selected':''}>HR</option></select>
-                                <select style="padding:9px 12px;font-size:13px;" onchange="window._reportQuarterFilter=this.value;window.showResultsReport()"><option value="all" ${selQ==='all'?'selected':''}>All Quarters</option>${qOpts.map(q=>`<option value="${q}" ${selQ===q?'selected':''}>${q}</option>`).join('')}</select>
-                                <input type="text" placeholder="Search by name..." style="padding:9px 12px;font-size:13px;" value="${window._reportSearch||''}" onkeyup="window._reportSearch=this.value;window.showResultsReport()">
-                            </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px;">
-                            <div style="background:linear-gradient(135deg,#0055b3,#0099e6);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Evaluated Employees</div></div>
-                            <div style="background:linear-gradient(135deg,#047857,#10b981);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.length?(filtered.reduce((a,b)=>a+parseFloat(b.fin),0)/filtered.length).toFixed(1):0}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Avg Final Score</div></div>
-                            <div style="background:linear-gradient(135deg,#6d28d9,#a855f7);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)>=85).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Outstanding (85+)</div></div>
-                            <div style="background:linear-gradient(135deg,#b91c1c,#ef4444);border-radius:14px;padding:18px;"><div style="font-size:28px;font-weight:700;color:#fff;">${filtered.filter(r=>parseFloat(r.fin)<70).length}</div><div style="font-size:13px;color:rgba(255,255,255,0.75);">Needs Improvement (&lt;70)</div></div>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;overflow:hidden;">
-                            <div style="overflow-x:auto;">
-                                <table style="width:100%;font-size:13px;">
-                                    <thead><tr style="background:rgba(0,120,255,0.06);">
-                                        <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Employee</th>
-                                        <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Company</th>
-                                        <th style="padding:14px 16px;text-align:left;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Role</th>
-                                        <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Peer Rating</th>
-                                        <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">HR Score</th>
-                                        <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Final Score</th>
-                                        <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Rating</th>
-                                        <th style="padding:14px 16px;text-align:center;color:#7dd3fc;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;border-bottom:1px solid rgba(0,150,255,0.2);">Action</th>
-                                    </tr></thead>
-                                    <tbody>${filtered.map(r=>`<tr style="border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.15s;" onmouseover="this.style.background='rgba(0,120,255,0.06)'" onmouseout="this.style.background='transparent'">
-                                        <td style="padding:12px 16px;font-weight:600;color:#e2e8f0;">${r.name}</td>
-                                        <td style="padding:12px 16px;"><span class="company-badge company-${r.company}">${r.company}</span></td>
-                                        <td style="padding:12px 16px;color:#94a3b8;text-transform:capitalize;">${r.role}</td>
-                                        <td style="padding:12px 16px;text-align:center;font-weight:700;color:#38bdf8;">${r.op}/100</td>
-                                        <td style="padding:12px 16px;text-align:center;font-weight:700;color:#94a3b8;">${r.hr==='N/A'?'<span style="color:#334155;font-size:11px;">No HR record</span>':r.hr+'/100'}</td>
-                                        <td style="padding:12px 16px;text-align:center;"><span class="${getClass(parseFloat(r.fin))}" style="padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">${r.fin}/100${r.noHrRecord?'<span title="HR record missing – score based on peer rating only" style="margin-left:4px;cursor:help;">⚠️</span>':''}</span></td>
-                                        <td style="padding:12px 16px;text-align:center;font-size:13px;">${parseFloat(r.fin)>=85?'🌟 Outstanding':parseFloat(r.fin)>=70?'✅ Satisfactory':'⚠️ Needs Improvement'}</td>
-                                        <td style="padding:12px 16px;text-align:center;"><button onclick="viewUserDetails('${r.id}')" style="color:#38bdf8;background:rgba(0,191,255,0.1);border:1px solid rgba(0,191,255,0.2);border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:600;">View</button></td>
-                                    </tr>`).join('')}</tbody>
-                                </table>
-                            </div>
-                            ${filtered.length===0?'<div style="padding:40px;text-align:center;color:#334155;font-size:14px;">No evaluated employees found.</div>':''}
-                        </div>
-                    </div>
-                </div>`;
             };
 
-            // ── FIX: Real CSV export ──
             window.exportResultsToCSV = async () => {
                 try {
                     const allU = await db.collection('users').get();
@@ -856,95 +874,101 @@
 
             // ── USER DETAILS ──
             window.viewUserDetails = async (userId) => {
-                showLoading(); await fetchNotifications();
-                const uDoc = await db.collection('users').doc(userId).get();
-                const u = uDoc.data();
-                const ratings = await db.collection('ratings').where('revieweeId','==',userId).get();
-                const reviews = ratings.docs.map(d=>({id:d.id,...d.data()}));
-                const ratingReviews = reviews.filter(r => r.average !== undefined && r.average !== null);
-                const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):'N/A';
-                const last4 = getLastNQuarters(4);
-                const qScores = [];
-                for(const q of last4) { const qr=ratingReviews.filter(r=>r.quarter===q); qScores.push(qr.length?(qr.reduce((a,b)=>a+b.average,0)/qr.length*20).toFixed(1):null); }
-                const canDel = currentUserData.role==='admin'||currentUserData.role==='hr';
-                const isHrAdmin = canSeeRaterIdentity();
+                try {
+                    showLoading(); await fetchNotifications();
+                    const uDoc = await db.collection('users').doc(userId).get();
+                    const u = uDoc.data();
+                    const ratings = await db.collection('ratings').where('revieweeId','==',userId).get();
+                    const reviews = ratings.docs.map(d=>({id:d.id,...d.data()}));
+                    const ratingReviews = reviews.filter(r => r.average !== undefined && r.average !== null);
+                    const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):'N/A';
+                    const last4 = getLastNQuarters(4);
+                    const qScores = [];
+                    for(const q of last4) { const qr=ratingReviews.filter(r=>r.quarter===q); qScores.push(qr.length?(qr.reduce((a,b)=>a+b.average,0)/qr.length*20).toFixed(1):null); }
+                    const canDel = currentUserData.role==='admin'||currentUserData.role==='hr';
+                    const isHrAdmin = canSeeRaterIdentity();
 
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('users')}
-                    <div id="userDetailContent" style="max-width:1000px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-                            <div>
-                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">${u.name}</h1>
-                                ${!isHrAdmin?`<span class="anon-badge"><i class="fas fa-user-secret" style="margin-right:4px;"></i>All feedback is anonymous</span>`:'<span style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater names visible</span>'}
-                            </div>
-                            <div style="display:flex;gap:10px;">
-                                <button onclick="exportUserPDF('${userId}')" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>PDF</button>
-                                <button onclick="renderUserDirectory()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
-                            </div>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;">
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
-                                <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Email</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;">${u.email}</p></div>
-                                <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Role</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;text-transform:capitalize;">${u.role}</p></div>
-                                <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Company</span><p style="margin:4px 0 0;"><span class="company-badge company-${u.company}">${u.company}</span></p></div>
-                                <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Avg Score</span><p style="color:#00bfff;font-size:28px;font-weight:700;margin:4px 0 0;">${avg}</p></div>
-                                <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Reviews</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;">${reviews.length}</p></div>
-                            </div>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;">
-                            <h3 style="color:#7dd3fc;font-weight:700;margin-bottom:16px;">📈 Trend (Last 4 Quarters)</h3>
-                            <canvas id="trendChart" width="400" height="180"></canvas>
-                        </div>
-                        <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback</h2>
-                        ${reviews.length ? reviews.map((r,i)=>{
-                            const hasAvg = r.average !== undefined && r.average !== null;
-                            return `
-                            <div class="feedback-card">
-                                <div style="background:linear-gradient(135deg,rgba(0,80,180,0.85),rgba(0,150,255,0.7));padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleFeedback(${i})">
-                                    <div>
-                                        <span style="font-weight:700;color:#fff;">${isHrAdmin ? r.raterName : 'Anonymous Reviewer'}</span>
-                                        <span style="font-size:12px;color:rgba(255,255,255,0.65);margin-left:8px;">${r.quarter||''}</span>
-                                    </div>
-                                    <div style="display:flex;align-items:center;gap:14px;">
-                                        ${hasAvg ? `<span style="background:rgba(255,255,255,0.2);color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">⭐ ${r.average}/5</span>` : '<span style="background:rgba(168,85,247,0.3);color:#e9d5ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">📝 Open Feedback</span>'}
-                                        ${canDel?`<button onclick="event.stopPropagation(); deleteFeedback('${r.id}','${userId}')" style="color:rgba(255,255,255,0.6);background:transparent;border:none;cursor:pointer;padding:4px;"><i class="fas fa-trash"></i></button>`:''}
-                                        <i class="fas fa-chevron-down" id="chevron${i}" style="color:rgba(255,255,255,0.7);transition:transform 0.2s;"></i>
-                                    </div>
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('users')}
+                        <div id="userDetailContent" style="max-width:1000px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+                                <div>
+                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">${u.name}</h1>
+                                    ${!isHrAdmin?`<span class="anon-badge"><i class="fas fa-user-secret" style="margin-right:4px;"></i>All feedback is anonymous</span>`:'<span style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater names visible</span>'}
                                 </div>
-                                <div class="hidden" id="feedbackContent${i}" style="padding:18px;border-top:1px solid rgba(0,150,255,0.15);">
-                                    ${r.comments?`<p style="font-style:italic;color:#94a3b8;margin-bottom:16px;">"${r.comments}"</p>`:''}
-                                    ${(r.scores && r.scores.length > 0) ? `
-                                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:13px;">
-                                        ${Array.isArray(r.scores)
-                                            ? r.scores.map(s => s.type === 'paragraph'
-                                                ? `<div style="grid-column:1/-1;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:10px 14px;">
-                                                    <p style="color:#94a3b8;font-size:12px;margin:0 0 6px;font-weight:600;">${s.question}</p>
-                                                    <p style="color:#e2e8f0;margin:0;font-size:13px;line-height:1.6;">${s.answer || '<em style="color:#475569">No answer provided</em>'}</p>
-                                                  </div>`
-                                                : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;font-size:12px;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5 — ${RATING_LABELS[s.score]||''}</span></div>`
-                                            ).join('')
-                                            : Object.entries(r.scores).map(([q,s])=>`<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;">${q}</span><span style="font-weight:700;color:#38bdf8;">${s}/5</span></div>`).join('')
-                                        }
-                                    </div>` : (!r.comments ? '<p style="color:#475569;font-style:italic;">No details recorded.</p>' : '')}
+                                <div style="display:flex;gap:10px;">
+                                    <button onclick="exportUserPDF('${userId}')" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>PDF</button>
+                                    <button onclick="renderUserDirectory()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
                                 </div>
-                            </div>`;
-                        }).join('') : '<p style="text-align:center;padding:40px;color:#334155;">No feedback yet</p>'}
-                    </div>
-                </div>`;
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;">
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+                                    <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Email</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;">${u.email}</p></div>
+                                    <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Role</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;text-transform:capitalize;">${u.role}</p></div>
+                                    <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Company</span><p style="margin:4px 0 0;"><span class="company-badge company-${u.company}">${u.company}</span></p></div>
+                                    <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Avg Score</span><p style="color:#00bfff;font-size:28px;font-weight:700;margin:4px 0 0;">${avg}</p></div>
+                                    <div><span style="color:#475569;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;">Reviews</span><p style="color:#e2e8f0;margin:4px 0 0;font-size:14px;">${reviews.length}</p></div>
+                                </div>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;">
+                                <h3 style="color:#7dd3fc;font-weight:700;margin-bottom:16px;">📈 Trend (Last 4 Quarters)</h3>
+                                <canvas id="trendChart" width="400" height="180"></canvas>
+                            </div>
+                            <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback</h2>
+                            ${reviews.length ? reviews.map((r,i)=>{
+                                const hasAvg = r.average !== undefined && r.average !== null;
+                                return `
+                                <div class="feedback-card">
+                                    <div style="background:linear-gradient(135deg,rgba(0,80,180,0.85),rgba(0,150,255,0.7));padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleFeedback(${i})">
+                                        <div>
+                                            <span style="font-weight:700;color:#fff;">${isHrAdmin ? r.raterName : 'Anonymous Reviewer'}</span>
+                                            <span style="font-size:12px;color:rgba(255,255,255,0.65);margin-left:8px;">${r.quarter||''}</span>
+                                        </div>
+                                        <div style="display:flex;align-items:center;gap:14px;">
+                                            ${hasAvg ? `<span style="background:rgba(255,255,255,0.2);color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">⭐ ${r.average}/5</span>` : '<span style="background:rgba(168,85,247,0.3);color:#e9d5ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">📝 Open Feedback</span>'}
+                                            ${canDel?`<button onclick="event.stopPropagation(); deleteFeedback('${r.id}','${userId}')" style="color:rgba(255,255,255,0.6);background:transparent;border:none;cursor:pointer;padding:4px;"><i class="fas fa-trash"></i></button>`:''}
+                                            <i class="fas fa-chevron-down" id="chevron${i}" style="color:rgba(255,255,255,0.7);transition:transform 0.2s;"></i>
+                                        </div>
+                                    </div>
+                                    <div class="hidden" id="feedbackContent${i}" style="padding:18px;border-top:1px solid rgba(0,150,255,0.15);">
+                                        ${r.comments?`<p style="font-style:italic;color:#94a3b8;margin-bottom:16px;">"${r.comments}"</p>`:''}
+                                        ${(r.scores && r.scores.length > 0) ? `
+                                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;font-size:13px;">
+                                            ${Array.isArray(r.scores)
+                                                ? r.scores.map(s => s.type === 'paragraph'
+                                                    ? `<div style="grid-column:1/-1;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:10px 14px;">
+                                                        <p style="color:#94a3b8;font-size:12px;margin:0 0 6px;font-weight:600;">${s.question}</p>
+                                                        <p style="color:#e2e8f0;margin:0;font-size:13px;line-height:1.6;">${s.answer || '<em style="color:#475569">No answer provided</em>'}</p>
+                                                      </div>`
+                                                    : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;font-size:12px;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5 — ${RATING_LABELS[s.score]||''}</span></div>`
+                                                ).join('')
+                                                : Object.entries(r.scores).map(([q,s])=>`<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;">${q}</span><span style="font-weight:700;color:#38bdf8;">${s}/5</span></div>`).join('')
+                                            }
+                                        </div>` : (!r.comments ? '<p style="color:#475569;font-style:italic;">No details recorded.</p>' : '')}
+                                    </div>
+                                </div>`;
+                            }).join('') : '<p style="text-align:center;padding:40px;color:#334155;">No feedback yet</p>'}
+                        </div>
+                    </div>`;
 
-                if(document.getElementById('trendChart')) {
-                    new Chart(document.getElementById('trendChart').getContext('2d'), {
-                        type:'line',
-                        data:{ labels:last4, datasets:[{ label:'Score (/100)', data:qScores, borderColor:'#00bfff', backgroundColor:'rgba(0,191,255,0.08)', tension:0.3, fill:true, pointBackgroundColor:'#00bfff', pointBorderColor:'#00bfff', pointRadius:5 }] },
-                        options:{
-                            scales:{
-                                y:{ beginAtZero:true, max:100, grid:{color:'rgba(0,150,255,0.08)'}, ticks:{color:'#475569'} },
-                                x:{ grid:{color:'rgba(0,150,255,0.06)'}, ticks:{color:'#475569'} }
-                            },
-                            plugins:{ legend:{ labels:{ color:'#7dd3fc' } } }
-                        }
-                    });
+                    if(document.getElementById('trendChart')) {
+                        new Chart(document.getElementById('trendChart').getContext('2d'), {
+                            type:'line',
+                            data:{ labels:last4, datasets:[{ label:'Score (/100)', data:qScores, borderColor:'#00bfff', backgroundColor:'rgba(0,191,255,0.08)', tension:0.3, fill:true, pointBackgroundColor:'#00bfff', pointBorderColor:'#00bfff', pointRadius:5 }] },
+                            options:{
+                                scales:{
+                                    y:{ beginAtZero:true, max:100, grid:{color:'rgba(0,150,255,0.08)'}, ticks:{color:'#475569'} },
+                                    x:{ grid:{color:'rgba(0,150,255,0.06)'}, ticks:{color:'#475569'} }
+                                },
+                                plugins:{ legend:{ labels:{ color:'#7dd3fc' } } }
+                            }
+                        });
+                    }
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load user details: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('users')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading user details. <button onclick="viewUserDetails('${userId}')" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
                 }
             };
 
@@ -959,78 +983,86 @@
 
             window.deleteFeedback = async (fid, uid) => { if(confirm('Delete this feedback?')) { await db.collection('ratings').doc(fid).delete(); showToast('Deleted'); viewUserDetails(uid); } };
 
+            // FIX: toggleFeedback chevron logic corrected — read state BEFORE toggling
             window.toggleFeedback = (i) => {
-                const c=document.getElementById(`feedbackContent${i}`);
-                const icon=document.getElementById(`chevron${i}`);
+                const c = document.getElementById(`feedbackContent${i}`);
+                const icon = document.getElementById(`chevron${i}`);
                 if(!c) return;
+                const isCurrentlyHidden = c.classList.contains('hidden');
                 c.classList.toggle('hidden');
-                if(icon) icon.style.transform = !c.classList.contains('hidden') ? 'rotate(180deg)' : 'rotate(0deg)';
+                if(icon) icon.style.transform = isCurrentlyHidden ? 'rotate(180deg)' : 'rotate(0deg)';
             };
 
             // ── DASHBOARD ──
             async function renderDashboard() {
-                showLoading(); await fetchNotifications();
-                const allU = await db.collection('users').get();
-                const allR = await db.collection('ratings').get();
-                let feedbacks = allR.docs.map(d=>d.data());
-                if(dashboardCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===dashboardCompanyFilter);
-                const ratedFeedbacks = feedbacks.filter(f=>f.average !== undefined);
-                const avgScore = ratedFeedbacks.length?(ratedFeedbacks.reduce((a,b)=>a+(b.average||0),0)/ratedFeedbacks.length).toFixed(1):0;
-                const low = ratedFeedbacks.filter(r=>r.average<3);
-                const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company&&d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
+                try {
+                    showLoading(); await fetchNotifications();
+                    const allU = await db.collection('users').get();
+                    const allR = await db.collection('ratings').get();
+                    let feedbacks = allR.docs.map(d=>d.data());
+                    if(dashboardCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===dashboardCompanyFilter);
+                    const ratedFeedbacks = feedbacks.filter(f=>f.average !== undefined);
+                    const avgScore = ratedFeedbacks.length?(ratedFeedbacks.reduce((a,b)=>a+(b.average||0),0)/ratedFeedbacks.length).toFixed(1):0;
+                    const low = ratedFeedbacks.filter(r=>r.average<3);
+                    const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company&&d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
 
-                const myRatingsSnap = await db.collection('ratings').where('raterId','==',currentUser.uid).where('quarter','==',selectedQuarter).get();
-                const completedThisQuarter = myRatingsSnap.docs.map(d=>d.data().revieweeId);
-                const pending = companyUsers.filter(u=>u.id!==currentUser.uid&&!completedThisQuarter.includes(u.id));
+                    const myRatingsSnap = await db.collection('ratings').where('raterId','==',currentUser.uid).where('quarter','==',selectedQuarter).get();
+                    const completedThisQuarter = myRatingsSnap.docs.map(d=>d.data().revieweeId);
+                    const pending = companyUsers.filter(u=>u.id!==currentUser.uid&&!completedThisQuarter.includes(u.id));
 
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('home')}
-                    <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
-                        ${low.length?`<div style="background:rgba(239,68,68,0.08);border-left:4px solid #ef4444;padding:14px 18px;margin-bottom:16px;border-radius:10px;color:#fca5a5;font-size:14px;"><i class="fas fa-exclamation-triangle" style="margin-right:8px;color:#ef4444;"></i>Low Rating Alert: ${low.length} rating${low.length>1?'s':''} below 3.0 (Kadalasan)</div>`:''}
-                        <div style="background:rgba(0,100,255,0.08);border:1px solid rgba(0,150,255,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#93c5fd;">
-                            <i class="fas fa-user-secret" style="color:#00bfff;font-size:16px;"></i>
-                            <span><strong>All evaluations are 100% anonymous.</strong> Rater identities are never revealed to the person being evaluated.</span>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h2 style="font-size:20px;font-weight:700;color:#e2e8f0;">Dashboard <span style="color:#00bfff;">(${selectedQuarter})</span></h2>
-                            <div style="display:flex;gap:10px;">
-                                <select style="padding:8px 12px;font-size:13px;" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select>
-                                <select style="padding:8px 12px;font-size:13px;" onchange="applyDashboardCompanyFilter(this.value)"><option value="all" ${dashboardCompanyFilter==='all'?'selected':''}>All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${dashboardCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('home')}
+                        <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
+                            ${low.length?`<div style="background:rgba(239,68,68,0.08);border-left:4px solid #ef4444;padding:14px 18px;margin-bottom:16px;border-radius:10px;color:#fca5a5;font-size:14px;"><i class="fas fa-exclamation-triangle" style="margin-right:8px;color:#ef4444;"></i>Low Rating Alert: ${low.length} rating${low.length>1?'s':''} below 3.0 (Kadalasan)</div>`:''}
+                            <div style="background:rgba(0,100,255,0.08);border:1px solid rgba(0,150,255,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#93c5fd;">
+                                <i class="fas fa-user-secret" style="color:#00bfff;font-size:16px;"></i>
+                                <span><strong>All evaluations are 100% anonymous.</strong> Rater identities are never revealed to the person being evaluated.</span>
                             </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
-                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.18);border-radius:14px;padding:20px;">
-                                <div style="font-size:30px;font-weight:700;color:#00bfff;">${feedbacks.length}</div>
-                                <div style="font-size:13px;color:#475569;margin-top:4px;">Total Feedback</div>
-                            </div>
-                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(16,185,129,0.2);border-radius:14px;padding:20px;">
-                                <div style="font-size:30px;font-weight:700;color:#34d399;">${avgScore}</div>
-                                <div style="font-size:13px;color:#475569;margin-top:4px;">Avg Rating</div>
-                            </div>
-                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(245,158,11,0.2);border-radius:14px;padding:20px;">
-                                <div style="font-size:30px;font-weight:700;color:#fbbf24;">${pending.length}</div>
-                                <div style="font-size:13px;color:#475569;margin-top:4px;">Pending (${selectedQuarter})</div>
-                            </div>
-                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(168,85,247,0.2);border-radius:14px;padding:20px;">
-                                <div style="font-size:30px;font-weight:700;color:#c084fc;">${allU.docs.filter(d=>d.data().role==='employee').length}</div>
-                                <div style="font-size:13px;color:#475569;margin-top:4px;">Employees</div>
-                            </div>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.18);border-radius:16px;padding:24px;">
-                            <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:16px;">📋 Pending Evaluations <span style="color:#00bfff;">(${selectedQuarter})</span></h3>
-                            ${pending.length ? `<div style="display:flex;flex-direction:column;gap:12px;">${pending.map(u=>`
-                            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.15);border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
-                                <div>
-                                    <span style="font-weight:600;color:#e2e8f0;">${u.name}</span>
-                                    <span style="font-size:12px;color:#475569;margin-left:8px;background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:6px;">${u.role}</span>
-                                    <span class="company-badge company-${u.company}" style="margin-left:6px;">${u.company}</span>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                                <h2 style="font-size:20px;font-weight:700;color:#e2e8f0;">Dashboard <span style="color:#00bfff;">(${selectedQuarter})</span></h2>
+                                <div style="display:flex;gap:10px;">
+                                    <select style="padding:8px 12px;font-size:13px;" onchange="changeSelectedQuarter(this.value)">${generateQuarterOptions().map(q=>`<option value="${q}" ${q===selectedQuarter?'selected':''}>${q}</option>`).join('')}</select>
+                                    <select style="padding:8px 12px;font-size:13px;" onchange="applyDashboardCompanyFilter(this.value)"><option value="all" ${dashboardCompanyFilter==='all'?'selected':''}>All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${dashboardCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>
                                 </div>
-                                <button onclick="startEvaluation('${u.id}','${u.name}','${u.role}')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(0,191,255,0.25);transition:all 0.2s;"><i class="fas fa-star" style="margin-right:6px;"></i>Evaluate</button>
-                            </div>`).join('')}</div>` : '<p style="text-align:center;color:#334155;padding:24px;">All evaluations for this quarter are complete! 🎉</p>'}
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:24px;">
+                                <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.18);border-radius:14px;padding:20px;">
+                                    <div style="font-size:30px;font-weight:700;color:#00bfff;">${feedbacks.length}</div>
+                                    <div style="font-size:13px;color:#475569;margin-top:4px;">Total Feedback</div>
+                                </div>
+                                <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(16,185,129,0.2);border-radius:14px;padding:20px;">
+                                    <div style="font-size:30px;font-weight:700;color:#34d399;">${avgScore}</div>
+                                    <div style="font-size:13px;color:#475569;margin-top:4px;">Avg Rating</div>
+                                </div>
+                                <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(245,158,11,0.2);border-radius:14px;padding:20px;">
+                                    <div style="font-size:30px;font-weight:700;color:#fbbf24;">${pending.length}</div>
+                                    <div style="font-size:13px;color:#475569;margin-top:4px;">Pending (${selectedQuarter})</div>
+                                </div>
+                                <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(168,85,247,0.2);border-radius:14px;padding:20px;">
+                                    <div style="font-size:30px;font-weight:700;color:#c084fc;">${allU.docs.filter(d=>d.data().role==='employee').length}</div>
+                                    <div style="font-size:13px;color:#475569;margin-top:4px;">Employees</div>
+                                </div>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.18);border-radius:16px;padding:24px;">
+                                <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:16px;">📋 Pending Evaluations <span style="color:#00bfff;">(${selectedQuarter})</span></h3>
+                                ${pending.length ? `<div style="display:flex;flex-direction:column;gap:12px;">${pending.map(u=>`
+                                <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.15);border-radius:12px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+                                    <div>
+                                        <span style="font-weight:600;color:#e2e8f0;">${u.name}</span>
+                                        <span style="font-size:12px;color:#475569;margin-left:8px;background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:6px;">${u.role}</span>
+                                        <span class="company-badge company-${u.company}" style="margin-left:6px;">${u.company}</span>
+                                    </div>
+                                    <button onclick="startEvaluation('${u.id}','${u.name}','${u.role}')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(0,191,255,0.25);transition:all 0.2s;"><i class="fas fa-star" style="margin-right:6px;"></i>Evaluate</button>
+                                </div>`).join('')}</div>` : '<p style="text-align:center;color:#334155;padding:24px;">All evaluations for this quarter are complete! 🎉</p>'}
+                            </div>
                         </div>
-                    </div>
-                </div>`;
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load dashboard: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('home')}<div style="text-align:center;padding:40px;color:#fca5a5;"><p>Failed to load dashboard.</p><button onclick="renderDashboard()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             }
             window.renderDashboard = renderDashboard;
             window.changeSelectedQuarter = (q) => { selectedQuarter=q; renderDashboard(); };
@@ -1061,7 +1093,6 @@
                             <textarea id="q${i}" class="paragraph-answer-box" placeholder="Isulat ang iyong sagot dito…" rows="3"></textarea>
                         </div>`;
                     } else {
-                        // ── UPDATED: Filipino rating scale buttons ──
                         const ratingBtnsHtml = [1,2,3,4,5].map(s=>`
                             <button type="button" class="rating-btn" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">
                                 <span style="font-weight:700;font-size:13px;margin-right:3px;">${s}</span>
@@ -1080,7 +1111,6 @@
                     }
                 });
 
-                // ── Rating scale legend ──
                 const legendHtml = `<div style="background:rgba(0,120,255,0.06);border:1px solid rgba(0,150,255,0.18);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#7dd3fc;">
                     <strong>Sukat ng Pagtatasa:</strong>&nbsp;
                     ${Object.entries(RATING_LABELS).map(([k,v])=>`<span style="margin-right:14px;"><strong style="color:#00bfff;">${k}</strong> = ${v}</span>`).join('')}
@@ -1163,165 +1193,184 @@
 
             // ── MY RESULTS ──
             async function viewMyResults() {
-                showLoading(); await fetchNotifications();
-                const snap = await db.collection('ratings').where('revieweeId','==',currentUser.uid).get();
-                const reviews = snap.docs.map(d=>d.data());
-                const ratingReviews = reviews.filter(r=>r.average !== undefined && r.average !== null);
-                const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):0;
+                try {
+                    showLoading(); await fetchNotifications();
+                    const snap = await db.collection('ratings').where('revieweeId','==',currentUser.uid).get();
+                    const reviews = snap.docs.map(d=>d.data());
+                    const ratingReviews = reviews.filter(r=>r.average !== undefined && r.average !== null);
+                    const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):0;
 
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('myresults')}
-                    <div style="max-width:700px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-                            <div>
-                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">My Results</h1>
-                                <span class="anon-badge"><i class="fas fa-user-secret"></i> All feedback is anonymous</span>
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('myresults')}
+                        <div style="max-width:700px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+                                <div>
+                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">My Results</h1>
+                                    <span class="anon-badge"><i class="fas fa-user-secret"></i> All feedback is anonymous</span>
+                                </div>
+                                <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
                             </div>
-                            <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:32px;">
+                                ${ratingReviews.length ? `
+                                <div style="text-align:center;padding:24px;">
+                                    <div style="font-size:64px;font-weight:700;color:#00bfff;filter:drop-shadow(0 0 18px rgba(0,191,255,0.4));">${avg}</div>
+                                    <div style="color:#64748b;margin-top:8px;font-size:14px;">Average score from ${ratingReviews.length} anonymous reviewer${ratingReviews.length!==1?'s':''}</div>
+                                    <div style="margin-top:12px;font-size:12px;color:#334155;">${RATING_SCALE_LEGEND}</div>
+                                </div>` : `<div style="text-align:center;padding:24px;color:#475569;font-size:14px;">No rated feedback yet.</div>`}
+                                ${reviews.filter(r=>r.comments).length?`
+                                <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
+                                    <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Anonymous Comments:</h3>
+                                    ${reviews.filter(r=>r.comments).map(r=>`
+                                    <div style="background:rgba(255,255,255,0.02);border-left:4px solid #0080ff;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+                                        <p style="font-style:italic;color:#94a3b8;margin:0 0 6px;">"${r.comments}"</p>
+                                        <p style="font-size:12px;color:#334155;margin:0;">${r.quarter||''} ${r.average !== undefined ? '· Score: '+r.average+'/5' : '· Open-ended'}</p>
+                                    </div>`).join('')}
+                                </div>`:''}
+                                ${reviews.some(r=>r.scores && Array.isArray(r.scores) && r.scores.some(s=>s.type==='paragraph')) ? `
+                                <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
+                                    <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Open-ended Responses:</h3>
+                                    ${reviews.map(r=>{
+                                        if(!r.scores || !Array.isArray(r.scores)) return '';
+                                        const paraAnswers = r.scores.filter(s=>s.type==='paragraph');
+                                        if(!paraAnswers.length) return '';
+                                        return paraAnswers.map(s=>`
+                                        <div style="background:rgba(168,85,247,0.06);border-left:4px solid #a855f7;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+                                            <p style="font-size:12px;color:#c084fc;font-weight:600;margin:0 0 6px;">${s.question}</p>
+                                            <p style="color:#94a3b8;margin:0;font-size:13px;line-height:1.6;">${s.answer}</p>
+                                            <p style="font-size:11px;color:#334155;margin:6px 0 0;">${r.quarter||''}</p>
+                                        </div>`).join('');
+                                    }).join('')}
+                                </div>` : ''}
+                            </div>
                         </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:32px;">
-                            ${ratingReviews.length ? `
-                            <div style="text-align:center;padding:24px;">
-                                <div style="font-size:64px;font-weight:700;color:#00bfff;filter:drop-shadow(0 0 18px rgba(0,191,255,0.4));">${avg}</div>
-                                <div style="color:#64748b;margin-top:8px;font-size:14px;">Average score from ${ratingReviews.length} anonymous reviewer${ratingReviews.length!==1?'s':''}</div>
-                                <div style="margin-top:12px;font-size:12px;color:#334155;">${RATING_SCALE_LEGEND}</div>
-                            </div>` : `<div style="text-align:center;padding:24px;color:#475569;font-size:14px;">No rated feedback yet.</div>`}
-                            ${reviews.filter(r=>r.comments).length?`
-                            <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
-                                <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Anonymous Comments:</h3>
-                                ${reviews.filter(r=>r.comments).map(r=>`
-                                <div style="background:rgba(255,255,255,0.02);border-left:4px solid #0080ff;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
-                                    <p style="font-style:italic;color:#94a3b8;margin:0 0 6px;">"${r.comments}"</p>
-                                    <p style="font-size:12px;color:#334155;margin:0;">${r.quarter||''} ${r.average !== undefined ? '· Score: '+r.average+'/5' : '· Open-ended'}</p>
-                                </div>`).join('')}
-                            </div>`:''}
-                            ${reviews.some(r=>r.scores && Array.isArray(r.scores) && r.scores.some(s=>s.type==='paragraph')) ? `
-                            <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
-                                <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Open-ended Responses:</h3>
-                                ${reviews.map(r=>{
-                                    if(!r.scores || !Array.isArray(r.scores)) return '';
-                                    const paraAnswers = r.scores.filter(s=>s.type==='paragraph');
-                                    if(!paraAnswers.length) return '';
-                                    return paraAnswers.map(s=>`
-                                    <div style="background:rgba(168,85,247,0.06);border-left:4px solid #a855f7;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
-                                        <p style="font-size:12px;color:#c084fc;font-weight:600;margin:0 0 6px;">${s.question}</p>
-                                        <p style="color:#94a3b8;margin:0;font-size:13px;line-height:1.6;">${s.answer}</p>
-                                        <p style="font-size:11px;color:#334155;margin:6px 0 0;">${r.quarter||''}</p>
-                                    </div>`).join('');
-                                }).join('')}
-                            </div>` : ''}
-                        </div>
-                    </div>
-                </div>`;
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load your results: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('myresults')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading results. <button onclick="viewMyResults()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             }
             window.viewMyResults = viewMyResults;
 
             // ── ALL FEEDBACK (HR / Admin) ──
             window.showAllFeedback = async () => {
-                showLoading(); await fetchNotifications();
-                const ratings = await db.collection('ratings').get();
-                const feedbacks = ratings.docs.map(d=>d.data());
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('feedback')}
-                    <div style="max-width:900px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
-                            <div>
-                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 6px;">All Feedback</h1>
-                                <p style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater identities visible here only</p>
-                            </div>
-                            <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
-                        </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
-                            ${feedbacks.length ? feedbacks.map(f=>`
-                            <div style="border-bottom:1px solid rgba(255,255,255,0.05);padding:14px 0;margin-bottom:4px;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                                    <div>
-                                        <span style="font-weight:700;color:#c084fc;">${f.raterName}</span>
-                                        <span style="color:#334155;margin:0 8px;">→</span>
-                                        <span style="font-weight:700;color:#e2e8f0;">${f.revieweeName}</span>
-                                    </div>
-                                    ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5 — ${RATING_LABELS[Math.round(f.average)]||''}</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
+                try {
+                    showLoading(); await fetchNotifications();
+                    const ratings = await db.collection('ratings').get();
+                    const feedbacks = ratings.docs.map(d=>d.data());
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('feedback')}
+                        <div style="max-width:900px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+                                <div>
+                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 6px;">All Feedback</h1>
+                                    <p style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater identities visible here only</p>
                                 </div>
-                                <p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 4px;">"${f.comments||'No comments'}"</p>
-                                <div style="font-size:11px;color:#334155;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
-                            </div>`).join('') : '<p style="text-align:center;color:#334155;padding:40px;font-size:14px;">No feedback yet</p>'}
+                                <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
+                                ${feedbacks.length ? feedbacks.map(f=>`
+                                <div style="border-bottom:1px solid rgba(255,255,255,0.05);padding:14px 0;margin-bottom:4px;">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                        <div>
+                                            <span style="font-weight:700;color:#c084fc;">${f.raterName}</span>
+                                            <span style="color:#334155;margin:0 8px;">→</span>
+                                            <span style="font-weight:700;color:#e2e8f0;">${f.revieweeName}</span>
+                                        </div>
+                                        ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5 — ${RATING_LABELS[Math.round(f.average)]||''}</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
+                                    </div>
+                                    <p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 4px;">"${f.comments||'No comments'}"</p>
+                                    <div style="font-size:11px;color:#334155;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
+                                </div>`).join('') : '<p style="text-align:center;color:#334155;padding:40px;font-size:14px;">No feedback yet</p>'}
+                            </div>
                         </div>
-                    </div>
-                </div>`;
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load feedback: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('feedback')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading feedback. <button onclick="showAllFeedback()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             };
 
             // ── HR INPUT PAGE ──
             window.showHrInputPage = async () => {
-                showLoading(); await fetchNotifications();
-                const allU = await db.collection('users').get();
-                let emps = allU.docs.filter(d=>d.data().role==='employee');
-                if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
-                    emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
-                }
-                const hrRec = await db.collection('hrRecords').get();
-                const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
+                try {
+                    showLoading(); await fetchNotifications();
+                    const allU = await db.collection('users').get();
+                    let emps = allU.docs.filter(d=>d.data().role==='employee');
+                    if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
+                        emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
+                    }
+                    const hrRec = await db.collection('hrRecords').get();
+                    const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
 
-                const inputStyle = `width:60px;padding:6px;text-align:center;border-radius:8px;font-size:13px;`;
-                const thStyle = `padding:12px 14px;color:#7dd3fc;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid rgba(0,150,255,0.2);font-weight:600;white-space:nowrap;`;
+                    const inputStyle = `width:60px;padding:6px;text-align:center;border-radius:8px;font-size:13px;`;
+                    const thStyle = `padding:12px 14px;color:#7dd3fc;font-size:11px;text-transform:uppercase;letter-spacing:0.07em;border-bottom:1px solid rgba(0,150,255,0.2);font-weight:600;white-space:nowrap;`;
 
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('hrinput')}
-                    <div style="max-width:1400px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                            <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-user-clock" style="color:#34d399;margin-right:10px;"></i>HR Input</h1>
-                            <div style="display:flex;gap:10px;">
-                                <select style="padding:8px 12px;font-size:13px;" onchange="window._hrCompanyFilter=this.value;window.showHrInputPage()">
-                                    <option value="all" ${window._hrCompanyFilter==='all'?'selected':''}>All Companies</option>
-                                    ${appSettings.companies.map(c=>`<option value="${c}" ${window._hrCompanyFilter===c?'selected':''}>${c}</option>`).join('')}
-                                </select>
-                                <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;">Back</button>
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('hrinput')}
+                        <div style="max-width:1400px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-user-clock" style="color:#34d399;margin-right:10px;"></i>HR Input</h1>
+                                <div style="display:flex;gap:10px;">
+                                    <select style="padding:8px 12px;font-size:13px;" onchange="window._hrCompanyFilter=this.value;window.showHrInputPage()">
+                                        <option value="all" ${window._hrCompanyFilter==='all'?'selected':''}>All Companies</option>
+                                        ${appSettings.companies.map(c=>`<option value="${c}" ${window._hrCompanyFilter===c?'selected':''}>${c}</option>`).join('')}
+                                    </select>
+                                    <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;">Back</button>
+                                </div>
+                            </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;overflow:hidden;">
+                                <div style="overflow-x:auto;">
+                                    <table style="width:100%;font-size:13px;">
+                                        <thead><tr style="background:rgba(0,120,255,0.06);">
+                                            <th style="${thStyle}text-align:left;">Employee</th>
+                                            <th style="${thStyle}">Company</th>
+                                            <th style="${thStyle}">Late <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.late})</span></th>
+                                            <th style="${thStyle}">NPSL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.npsl})</span></th>
+                                            <th style="${thStyle}">NPL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.npl})</span></th>
+                                            <th style="${thStyle}">AWOL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.awol})</span></th>
+                                            <th style="${thStyle}">Type A <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningA})</span></th>
+                                            <th style="${thStyle}">Type B <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningB})</span></th>
+                                            <th style="${thStyle}">Type C <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningC})</span></th>
+                                            <th style="${thStyle}">HR Score</th>
+                                        </tr></thead>
+                                        <tbody>${emps.map(e=>{ const hr=hrMap[e.id]||{}; return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                                            <td style="padding:10px 14px;font-weight:600;color:#e2e8f0;">${e.data().name}</td>
+                                            <td style="padding:10px 14px;"><span class="company-badge company-${e.data().company}">${e.data().company}</span></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="late-${e.id}" value="${hr.late||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="npsl-${e.id}" value="${hr.npsl||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="npl-${e.id}" value="${hr.npl||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="awol-${e.id}" value="${hr.awol||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="warningA-${e.id}" value="${hr.warningA||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="warningB-${e.id}" value="${hr.warningB||0}" min="0" style="${inputStyle}"></td>
+                                            <td style="padding:8px;text-align:center;"><input type="number" id="warningC-${e.id}" value="${hr.warningC||0}" min="0" style="${inputStyle}"></td>
+                                            <td id="score-${e.id}" style="text-align:center;font-weight:700;font-size:16px;">-</td>
+                                        </tr>`; }).join('')}</tbody>
+                                    </table>
+                                </div>
+                                <div style="padding:16px 20px;">
+                                    <button onclick="saveAllHrData()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 0 16px rgba(16,185,129,0.25);"><i class="fas fa-save" style="margin-right:8px;"></i>Save All HR Data</button>
+                                </div>
                             </div>
                         </div>
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;overflow:hidden;">
-                            <div style="overflow-x:auto;">
-                                <table style="width:100%;font-size:13px;">
-                                    <thead><tr style="background:rgba(0,120,255,0.06);">
-                                        <th style="${thStyle}text-align:left;">Employee</th>
-                                        <th style="${thStyle}">Company</th>
-                                        <th style="${thStyle}">Late <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.late})</span></th>
-                                        <th style="${thStyle}">NPSL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.npsl})</span></th>
-                                        <th style="${thStyle}">NPL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.npl})</span></th>
-                                        <th style="${thStyle}">AWOL <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.awol})</span></th>
-                                        <th style="${thStyle}">Type A <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningA})</span></th>
-                                        <th style="${thStyle}">Type B <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningB})</span></th>
-                                        <th style="${thStyle}">Type C <span style="color:#334155;font-weight:400;">(-${appSettings.deductions.warningC})</span></th>
-                                        <th style="${thStyle}">HR Score</th>
-                                    </tr></thead>
-                                    <tbody>${emps.map(e=>{ const hr=hrMap[e.id]||{}; return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                                        <td style="padding:10px 14px;font-weight:600;color:#e2e8f0;">${e.data().name}</td>
-                                        <td style="padding:10px 14px;"><span class="company-badge company-${e.data().company}">${e.data().company}</span></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="late-${e.id}" value="${hr.late||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="npsl-${e.id}" value="${hr.npsl||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="npl-${e.id}" value="${hr.npl||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="awol-${e.id}" value="${hr.awol||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="warningA-${e.id}" value="${hr.warningA||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="warningB-${e.id}" value="${hr.warningB||0}" min="0" style="${inputStyle}"></td>
-                                        <td style="padding:8px;text-align:center;"><input type="number" id="warningC-${e.id}" value="${hr.warningC||0}" min="0" style="${inputStyle}"></td>
-                                        <td id="score-${e.id}" style="text-align:center;font-weight:700;font-size:16px;">100</td>
-                                    </tr>`; }).join('')}</tbody>
-                                </table>
-                            </div>
-                            <div style="padding:16px 20px;">
-                                <button onclick="saveAllHrData()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 0 16px rgba(16,185,129,0.25);"><i class="fas fa-save" style="margin-right:8px;"></i>Save All HR Data</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-                emps.forEach(e=>{
-                    ['late','npsl','npl','awol','warningA','warningB','warningC'].forEach(f=>{
-                        const inp=document.getElementById(`${f}-${e.id}`);
-                        if(inp) inp.addEventListener('input',()=>{ updateHrScoreDisplay(e.id); });
+                    </div>`;
+                    // FIX: attach listeners AND immediately compute initial score from existing data
+                    emps.forEach(e=>{
+                        ['late','npsl','npl','awol','warningA','warningB','warningC'].forEach(f=>{
+                            const inp=document.getElementById(`${f}-${e.id}`);
+                            if(inp) inp.addEventListener('input',()=>{ updateHrScoreDisplay(e.id); });
+                        });
+                        updateHrScoreDisplay(e.id);
                     });
-                    updateHrScoreDisplay(e.id);
-                });
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load HR input page: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('hrinput')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading HR input. <button onclick="showHrInputPage()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             };
             function updateHrScoreDisplay(empId) {
                 const get = (f) => parseInt(document.getElementById(`${f}-${empId}`)?.value)||0;
@@ -1355,81 +1404,127 @@
             };
 
             // ── QUESTION MANAGER ──
+            // FIX: renderQuestionListHTML uses DOM order (via index), not data-index for onclick attributes
             function renderQuestionListHTML(type) {
                 const questions = migrateQuestions(type==='employee' ? appSettings.employeeQuestions : appSettings.managerQuestions);
                 if(!questions.length) return '<p style="color:#475569;font-size:13px;padding:10px;">No questions yet. Click Add to create one.</p>';
                 return questions.map((q,idx)=>{
                     const isParagraph = q.type === 'paragraph';
-                    // FIX: use data-qtype attribute instead of reading innerText for type detection
                     return `
                     <div class="question-item" draggable="true" data-index="${idx}" data-type="${type}" style="display:flex;align-items:center;gap:10px;">
                         <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
                         <input type="text" value="${q.text.replace(/"/g,'&quot;')}" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
                         <button type="button" title="Toggle question type" data-qtype="${isParagraph?'paragraph':'rating'}"
-                            onclick="toggleQuestionType('${type}',${idx})"
                             style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
                             <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
                         </button>
-                        <button type="button" class="delete-q-btn" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="delete-q-btn" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
                     </div>`;
                 }).join('');
             }
 
+            // FIX: Use event delegation for question buttons instead of inline onclick with stale index
+            function attachQuestionListHandlers(type) {
+                const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                const container = document.getElementById(listId);
+                if(!container) return;
+
+                // Remove old listeners by replacing (cloneNode)
+                const newContainer = container.cloneNode(true);
+                container.parentNode.replaceChild(newContainer, container);
+
+                newContainer.addEventListener('click', function(e) {
+                    const item = e.target.closest('.question-item');
+                    if(!item) return;
+                    // Get live index from DOM position
+                    const items = [...newContainer.querySelectorAll('.question-item')];
+                    const liveIdx = items.indexOf(item);
+
+                    if(e.target.closest('button[title="Toggle question type"]')) {
+                        const btn = e.target.closest('button[title="Toggle question type"]');
+                        const currentType = btn.dataset.qtype;
+                        const newType = currentType === 'paragraph' ? 'rating' : 'paragraph';
+                        btn.dataset.qtype = newType;
+                        btn.innerHTML = `<i class="fas fa-${newType==='paragraph'?'paragraph':'star'}" style="margin-right:4px;"></i>${newType==='paragraph'?'Paragraph':'Rating'}`;
+                        btn.style.background = newType==='paragraph' ? 'rgba(168,85,247,0.2)' : 'rgba(0,191,255,0.15)';
+                        btn.style.color = newType==='paragraph' ? '#d8b4fe' : '#38bdf8';
+                    } else if(e.target.closest('.delete-q-btn')) {
+                        if(!confirm('Delete this question?')) return;
+                        const allItems = [...newContainer.querySelectorAll('.question-item')];
+                        if(allItems.length<=1) return showToast('Cannot delete the last question',true);
+                        item.remove();
+                        reindexQuestions(type);
+                    }
+                });
+
+                newContainer.addEventListener('dragover', e => e.preventDefault());
+                newContainer.addEventListener('drop', e => handleDrop(e, type));
+
+                setupDragAndDrop(type);
+            }
+
             window.showQuestionManager = async () => {
-                await fetchNotifications();
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('questions')}
-                    <div style="max-width:900px;margin:0 auto;padding:24px 16px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                            <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-list-check" style="color:#c084fc;margin-right:10px;"></i>Evaluation Questions Manager</h1>
-                            <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
-                        </div>
+                try {
+                    await fetchNotifications();
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('questions')}
+                        <div style="max-width:900px;margin:0 auto;padding:24px 16px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-list-check" style="color:#c084fc;margin-right:10px;"></i>Evaluation Questions Manager</h1>
+                                <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
+                            </div>
 
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:16px;">
-                            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                                <span class="q-type-badge-rating"><i class="fas fa-star"></i> Rating (1–5)</span>
-                                <span style="color:#475569;font-size:12px;">— reviewer selects a score</span>
-                                <span class="q-type-badge-paragraph"><i class="fas fa-paragraph"></i> Paragraph</span>
-                                <span style="color:#475569;font-size:12px;">— reviewer writes a free-text answer</span>
-                                <span style="color:#334155;font-size:12px;margin-left:auto;">Click the badge on any question to toggle its type.</span>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:16px;">
+                                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                                    <span class="q-type-badge-rating"><i class="fas fa-star"></i> Rating (1–5)</span>
+                                    <span style="color:#475569;font-size:12px;">— reviewer selects a score</span>
+                                    <span class="q-type-badge-paragraph"><i class="fas fa-paragraph"></i> Paragraph</span>
+                                    <span style="color:#475569;font-size:12px;">— reviewer writes a free-text answer</span>
+                                    <span style="color:#334155;font-size:12px;margin-left:auto;">Click the badge on any question to toggle its type.</span>
+                                </div>
                             </div>
-                        </div>
 
-                        <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
-                            <div style="display:flex;gap:10px;margin-bottom:20px;">
-                                <button id="tabEmployee" onclick="switchQuestionTab('employee')" style="padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">Employee Questions</button>
-                                <button id="tabManager" onclick="switchQuestionTab('manager')" style="padding:9px 18px;border-radius:10px;background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;">Manager Questions</button>
-                            </div>
-                            <div id="employeeQuestionsPanel">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                                    <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Employee Evaluation Questions</h3>
-                                    <div style="display:flex;gap:8px;">
-                                        <button onclick="addQuestion('employee','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
-                                        <button onclick="addQuestion('employee','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
-                                    </div>
+                            <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
+                                <div style="display:flex;gap:10px;margin-bottom:20px;">
+                                    <button id="tabEmployee" onclick="switchQuestionTab('employee')" style="padding:9px 18px;border-radius:10px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;font-weight:600;font-size:13px;cursor:pointer;">Employee Questions</button>
+                                    <button id="tabManager" onclick="switchQuestionTab('manager')" style="padding:9px 18px;border-radius:10px;background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;">Manager Questions</button>
                                 </div>
-                                <div id="employeeQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'employee')">${renderQuestionListHTML('employee')}</div>
-                            </div>
-                            <div id="managerQuestionsPanel" class="hidden">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                                    <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Manager Evaluation Questions</h3>
-                                    <div style="display:flex;gap:8px;">
-                                        <button onclick="addQuestion('manager','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
-                                        <button onclick="addQuestion('manager','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
+                                <div id="employeeQuestionsPanel">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                        <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Employee Evaluation Questions</h3>
+                                        <div style="display:flex;gap:8px;">
+                                            <button onclick="addQuestion('employee','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
+                                            <button onclick="addQuestion('employee','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
+                                        </div>
                                     </div>
+                                    <div id="employeeQuestionsList" style="display:flex;flex-direction:column;gap:0;">${renderQuestionListHTML('employee')}</div>
                                 </div>
-                                <div id="managerQuestionsList" style="display:flex;flex-direction:column;gap:0;" ondragover="event.preventDefault()" ondrop="handleDrop(event,'manager')">${renderQuestionListHTML('manager')}</div>
+                                <div id="managerQuestionsPanel" class="hidden">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                        <h3 style="font-weight:700;color:#7dd3fc;font-size:16px;">Manager Evaluation Questions</h3>
+                                        <div style="display:flex;gap:8px;">
+                                            <button onclick="addQuestion('manager','rating')" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-star" style="margin-right:4px;"></i>Add Rating</button>
+                                            <button onclick="addQuestion('manager','paragraph')" style="background:linear-gradient(135deg,#6d28d9,#a855f7);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-paragraph" style="margin-right:4px;"></i>Add Paragraph</button>
+                                        </div>
+                                    </div>
+                                    <div id="managerQuestionsList" style="display:flex;flex-direction:column;gap:0;">${renderQuestionListHTML('manager')}</div>
+                                </div>
+                                <div style="margin-top:20px;display:flex;gap:12px;">
+                                    <button onclick="saveQuestionsFromUI()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-save" style="margin-right:8px;"></i>Save Changes</button>
+                                    <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 22px;font-size:14px;cursor:pointer;">Cancel</button>
+                                </div>
+                                <p style="font-size:12px;color:#334155;margin-top:10px;"><i class="fas fa-grip-vertical" style="margin-right:4px;"></i>Drag to reorder. Click the type badge to toggle Rating ↔ Paragraph. Click Save to apply.</p>
                             </div>
-                            <div style="margin-top:20px;display:flex;gap:12px;">
-                                <button onclick="saveQuestionsFromUI()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;"><i class="fas fa-save" style="margin-right:8px;"></i>Save Changes</button>
-                                <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 22px;font-size:14px;cursor:pointer;">Cancel</button>
-                            </div>
-                            <p style="font-size:12px;color:#334155;margin-top:10px;"><i class="fas fa-grip-vertical" style="margin-right:4px;"></i>Drag to reorder. Click the type badge to toggle Rating ↔ Paragraph. Click Save to apply.</p>
                         </div>
-                    </div>
-                </div>`;
-                setupDragAndDrop();
+                    </div>`;
+                    attachQuestionListHandlers('employee');
+                    attachQuestionListHandlers('manager');
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load question manager: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('questions')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading question manager. <button onclick="showQuestionManager()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             };
 
             window.switchQuestionTab = (type) => {
@@ -1439,42 +1534,24 @@
                 document.getElementById('tabManager').style.cssText = `padding:9px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;background:${type==='manager'?'linear-gradient(135deg,#0055b3,#00bfff)':'rgba(255,255,255,0.07)'};color:${type==='manager'?'#fff':'#94a3b8'};`;
             };
 
-            // FIX: Use data-qtype attribute — reliable, not affected by icon text bleeding into innerText
-            window.toggleQuestionType = (type, idx) => {
-                const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
-                if(!container) return;
-                const item = container.querySelector(`.question-item[data-index="${idx}"]`);
-                if(!item) return;
-                const btn = item.querySelector('button[title="Toggle question type"]');
-                if(!btn) return;
-                const currentType = btn.dataset.qtype;
-                const newType = currentType === 'paragraph' ? 'rating' : 'paragraph';
-                btn.dataset.qtype = newType;
-                btn.innerHTML = `<i class="fas fa-${newType==='paragraph'?'paragraph':'star'}" style="margin-right:4px;"></i>${newType==='paragraph'?'Paragraph':'Rating'}`;
-                btn.style.background = newType==='paragraph' ? 'rgba(168,85,247,0.2)' : 'rgba(0,191,255,0.15)';
-                btn.style.color = newType==='paragraph' ? '#d8b4fe' : '#38bdf8';
-            };
-
             window.addQuestion = (type, qtype='rating') => {
-                const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                const container = document.getElementById(listId);
                 if(!container) return;
-                const idx = container.querySelectorAll('.question-item').length;
                 const isParagraph = qtype === 'paragraph';
                 const newItem = document.createElement('div');
                 newItem.className='question-item';
                 newItem.style.cssText='display:flex;align-items:center;gap:10px;';
                 newItem.draggable=true;
-                newItem.dataset.index=idx;
                 newItem.dataset.type=type;
                 newItem.innerHTML=`
                     <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
-                    <input type="text" value="New ${isParagraph?'Paragraph':'Rating'} Question" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
+                    <input type="text" value="New ${isParagraph?'Paragraph':'Rating'} Question" style="flex:1;padding:8px 12px;font-size:13px;">
                     <button type="button" title="Toggle question type" data-qtype="${qtype}"
-                        onclick="toggleQuestionType('${type}',${idx})"
                         style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
                         <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
                     </button>
-                    <button type="button" class="delete-q-btn" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
+                    <button type="button" class="delete-q-btn" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
                 container.appendChild(newItem);
                 setupDragListeners(newItem);
                 reindexQuestions(type);
@@ -1483,32 +1560,24 @@
             };
 
             function reindexQuestions(type) {
-                const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                const container = document.getElementById(listId);
                 if(!container) return;
                 container.querySelectorAll('.question-item').forEach((item,newIdx)=>{
-                    item.dataset.index=newIdx;
-                    const input=item.querySelector('input');
-                    if(input) input.dataset.qindex=newIdx;
-                    // FIX: use specific class selectors to avoid ambiguity
-                    const toggleBtn=item.querySelector('button[title="Toggle question type"]');
-                    if(toggleBtn) toggleBtn.setAttribute('onclick',`toggleQuestionType('${type}',${newIdx})`);
-                    const deleteBtn=item.querySelector('.delete-q-btn');
-                    if(deleteBtn) deleteBtn.setAttribute('onclick',`deleteQuestion('${type}',${newIdx})`);
+                    item.dataset.index = newIdx;
+                    const input = item.querySelector('input[type="text"]');
+                    if(input) input.dataset.qindex = newIdx;
                 });
             }
 
-            window.deleteQuestion = (type, idx) => {
-                if(!confirm('Delete this question?')) return;
-                const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+            // FIX: setupDragAndDrop now accepts a type parameter and only sets up listeners for that list
+            function setupDragAndDrop(type) {
+                const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                const container = document.getElementById(listId);
                 if(!container) return;
-                const items = container.querySelectorAll('.question-item');
-                if(items.length<=1) return showToast('Cannot delete the last question',true);
-                const actualItem = container.querySelector(`.question-item[data-index="${idx}"]`);
-                if(actualItem) actualItem.remove();
-                reindexQuestions(type);
-            };
+                container.querySelectorAll('.question-item').forEach(item=>setupDragListeners(item));
+            }
 
-            function setupDragAndDrop() { document.querySelectorAll('.question-item').forEach(item=>setupDragListeners(item)); }
             function setupDragListeners(el) {
                 el.addEventListener('dragstart',(e)=>{ e.dataTransfer.setData('text/plain',JSON.stringify({type:el.dataset.type,index:el.dataset.index})); el.classList.add('dragging'); });
                 el.addEventListener('dragend',()=>{ el.classList.remove('dragging'); });
@@ -1518,7 +1587,9 @@
                 try {
                     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                     if(data.type!==targetType) return;
-                    const container = document.getElementById(targetType==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                    const listId = targetType==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                    const container = document.getElementById(listId);
+                    if(!container) return;
                     const items = [...container.querySelectorAll('.question-item')];
                     const dragIndex = parseInt(data.index);
                     const dropTarget = e.target.closest('.question-item');
@@ -1533,14 +1604,14 @@
 
             window.saveQuestionsFromUI = () => {
                 ['employee','manager'].forEach(type => {
-                    const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
+                    const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
+                    const container = document.getElementById(listId);
                     if(!container) return;
                     const items = [...container.querySelectorAll('.question-item')];
                     const questions = items.map(item => {
-                        const input = item.querySelector('input');
+                        const input = item.querySelector('input[type="text"]');
                         const toggleBtn = item.querySelector('button[title="Toggle question type"]');
                         const text = input ? input.value.trim() : '';
-                        // FIX: read from data-qtype attribute, not innerText
                         const qtype = toggleBtn ? toggleBtn.dataset.qtype : 'rating';
                         return { text, type: qtype };
                     }).filter(q => q.text.length > 0);
@@ -1552,69 +1623,100 @@
 
             // ── ADMIN PANEL ──
             window.showAdminPanel = async () => {
-                await fetchNotifications();
-                const sectionStyle = `background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;`;
-                const labelStyle = `display:block;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;`;
-                const inputStyle = `width:100%;padding:10px 14px;font-size:14px;border-radius:10px;`;
-                document.getElementById('app').innerHTML = `
-                <div style="min-height:100vh;">
-                    ${renderNavbar('admin')}
-                    <div style="max-width:1000px;margin:0 auto;padding:24px 16px;">
-                        <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:20px;">⚙️ Admin Control Panel</h1>
+                try {
+                    await fetchNotifications();
+                    const sectionStyle = `background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;margin-bottom:20px;`;
+                    const labelStyle = `display:block;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;`;
+                    const inputStyle = `width:100%;padding:10px 14px;font-size:14px;border-radius:10px;`;
+                    document.getElementById('app').innerHTML = `
+                    <div style="min-height:100vh;">
+                        ${renderNavbar('admin')}
+                        <div style="max-width:1000px;margin:0 auto;padding:24px 16px;">
+                            <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:20px;">⚙️ Admin Control Panel</h1>
 
-                        <div style="${sectionStyle}">
-                            <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:12px;">📤 Bulk Import Users (CSV)</h2>
-                            <p style="font-size:13px;color:#64748b;margin-bottom:14px;">CSV columns: Name, Email, Role, Company, Password (optional — defaults to "password123")</p>
-                            <input type="file" id="csvFileInput" accept=".csv" style="margin-bottom:12px;color:#94a3b8;font-size:13px;">
-                            <br>
-                            <button onclick="importUsersFromCSV()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Import Users</button>
-                            <div id="importResult" style="margin-top:12px;font-size:13px;"></div>
-                        </div>
+                            <div style="${sectionStyle}">
+                                <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:12px;">📤 Bulk Import Users (CSV)</h2>
+                                <p style="font-size:13px;color:#64748b;margin-bottom:14px;">CSV columns: Name, Email, Role, Company, Password (optional — defaults to "password123")</p>
+                                <input type="file" id="csvFileInput" accept=".csv" style="margin-bottom:12px;color:#94a3b8;font-size:13px;">
+                                <br>
+                                <button onclick="importUsersFromCSV()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Import Users</button>
+                                <div id="importResult" style="margin-top:12px;font-size:13px;"></div>
+                            </div>
 
-                        <div style="${sectionStyle}">
-                            <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">🏢 Companies</h2>
-                            <div id="companiesList">${appSettings.companies.map(c=>`<div style="display:flex;gap:10px;margin-bottom:10px;"><input type="text" value="${c}" class="company-input" style="${inputStyle}"><button onclick="removeCompany(this)" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:6px 12px;cursor:pointer;white-space:nowrap;">✕</button></div>`).join('')}</div>
-                            <div style="display:flex;gap:10px;margin-top:6px;">
-                                <button onclick="addCompany()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ Add Company</button>
-                                <button onclick="saveCompanies()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">Save Companies</button>
+                            <div style="${sectionStyle}">
+                                <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">🏢 Companies</h2>
+                                <div id="companiesList">${appSettings.companies.map(c=>`<div style="display:flex;gap:10px;margin-bottom:10px;"><input type="text" value="${c}" class="company-input" style="${inputStyle}"><button onclick="removeCompany(this)" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:6px 12px;cursor:pointer;white-space:nowrap;">✕</button></div>`).join('')}</div>
+                                <div style="display:flex;gap:10px;margin-top:6px;">
+                                    <button onclick="addCompany()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">+ Add Company</button>
+                                    <button onclick="saveCompanies()" style="background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;">Save Companies</button>
+                                </div>
+                            </div>
+
+                            <div style="${sectionStyle}">
+                                <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:6px;">⚖️ Score Weights</h2>
+                                <p style="font-size:13px;color:#64748b;margin-bottom:14px;">Both weights must add up to 1.0 (e.g. 0.7 + 0.3 = 1.0)</p>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                                    <div><label style="${labelStyle}">Operation (Peer) Weight</label><input type="number" id="opWeight" step="0.05" min="0" max="1" value="${appSettings.operationWeight}" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">HR Weight</label><input type="number" id="hrWeight" step="0.05" min="0" max="1" value="${appSettings.hrWeight}" style="${inputStyle}"></div>
+                                </div>
+                                <button onclick="saveWeights()" style="margin-top:14px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save Weights</button>
+                            </div>
+
+                            <div style="${sectionStyle}">
+                                <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">📝 Deduction Points per Incident</h2>
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;">
+                                    <div><label style="${labelStyle}">Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">NPSL (No Pay Short Leave)</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">NPL (No Pay Leave)</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">Warning Type A (Minor)</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">Warning Type B (Major)</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" min="0" style="${inputStyle}"></div>
+                                    <div><label style="${labelStyle}">Warning Type C (Serious)</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" min="0" style="${inputStyle}"></div>
+                                </div>
+                                <button onclick="saveDeductions()" style="margin-top:14px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save Deductions</button>
+                            </div>
+
+                            <div style="${sectionStyle}">
+                                <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">📊 System Actions</h2>
+                                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                                    <button onclick="exportSystemData()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>Export All Data</button>
+                                    <button onclick="resetSystemData()" style="background:linear-gradient(135deg,#b91c1c,#ef4444);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-trash" style="margin-right:6px;"></i>Reset Ratings</button>
+                                </div>
+                                <p style="font-size:12px;color:#334155;margin-top:10px;">Reset only deletes ratings & HR records. User accounts remain.</p>
                             </div>
                         </div>
-
-                        <div style="${sectionStyle}">
-                            <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:6px;">⚖️ Score Weights</h2>
-                            <p style="font-size:13px;color:#64748b;margin-bottom:14px;">Both weights must add up to 1.0 (e.g. 0.7 + 0.3 = 1.0)</p>
-                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                                <div><label style="${labelStyle}">Operation (Peer) Weight</label><input type="number" id="opWeight" step="0.05" min="0" max="1" value="${appSettings.operationWeight}" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">HR Weight</label><input type="number" id="hrWeight" step="0.05" min="0" max="1" value="${appSettings.hrWeight}" style="${inputStyle}"></div>
-                            </div>
-                            <button onclick="saveWeights()" style="margin-top:14px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save Weights</button>
-                        </div>
-
-                        <div style="${sectionStyle}">
-                            <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">📝 Deduction Points per Incident</h2>
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;">
-                                <div><label style="${labelStyle}">Late</label><input type="number" id="ded_late" value="${appSettings.deductions.late}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">NPSL (No Pay Short Leave)</label><input type="number" id="ded_npsl" value="${appSettings.deductions.npsl}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">NPL (No Pay Leave)</label><input type="number" id="ded_npl" value="${appSettings.deductions.npl}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">AWOL</label><input type="number" id="ded_awol" value="${appSettings.deductions.awol}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">Warning Type A (Minor)</label><input type="number" id="ded_warningA" value="${appSettings.deductions.warningA}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">Warning Type B (Major)</label><input type="number" id="ded_warningB" value="${appSettings.deductions.warningB}" min="0" style="${inputStyle}"></div>
-                                <div><label style="${labelStyle}">Warning Type C (Serious)</label><input type="number" id="ded_warningC" value="${appSettings.deductions.warningC}" min="0" style="${inputStyle}"></div>
-                            </div>
-                            <button onclick="saveDeductions()" style="margin-top:14px;background:linear-gradient(135deg,#0055b3,#00bfff);color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save Deductions</button>
-                        </div>
-
-                        <div style="${sectionStyle}">
-                            <h2 style="font-size:18px;font-weight:700;color:#7dd3fc;margin-bottom:14px;">📊 System Actions</h2>
-                            <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                                <button onclick="exportSystemData()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>Export All Data</button>
-                                <button onclick="resetSystemData()" style="background:linear-gradient(135deg,#b91c1c,#ef4444);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-trash" style="margin-right:6px;"></i>Reset Ratings</button>
-                            </div>
-                            <p style="font-size:12px;color:#334155;margin-top:10px;">Reset only deletes ratings & HR records. User accounts remain.</p>
-                        </div>
-                    </div>
-                </div>`;
+                    </div>`;
+                } catch(e) {
+                    console.error(e);
+                    showToast('Failed to load admin panel: ' + e.message, true);
+                    document.getElementById('app').innerHTML = `${renderNavbar('admin')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading admin panel. <button onclick="showAdminPanel()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
+                }
             };
+
+            function parseCSV(text) {
+                const rows = [];
+                let currentRow = [];
+                let currentField = '';
+                let inQuotes = false;
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    if (inQuotes) {
+                        if (char === '"') {
+                            if (text[i+1] === '"') { currentField += '"'; i++; }
+                            else { inQuotes = false; }
+                        } else { currentField += char; }
+                    } else {
+                        if (char === '"') { inQuotes = true; }
+                        else if (char === ',') { currentRow.push(currentField.trim()); currentField = ''; }
+                        else if (char === '\n' || char === '\r') {
+                            if (currentField || currentRow.length > 0) { currentRow.push(currentField.trim()); rows.push(currentRow); currentRow = []; currentField = ''; }
+                            if (char === '\r' && text[i+1] === '\n') i++;
+                        } else { currentField += char; }
+                    }
+                }
+                if (currentField || currentRow.length > 0) { currentRow.push(currentField.trim()); rows.push(currentRow); }
+                return rows;
+            }
 
             window.importUsersFromCSV = async () => {
                 const file = document.getElementById('csvFileInput').files[0];
@@ -1626,17 +1728,19 @@
                     r.onerror = () => reject(new Error('Failed to read file'));
                     r.readAsText(file);
                 });
-                const lines = csvText.split('\n').filter(l=>l.trim());
-                if(lines.length<2) return showToast('CSV must have a header row',true);
-                const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
-                if(!['name','email','role','company'].every(r=>headers.includes(r))) return showToast('CSV must have columns: Name, Email, Role, Company',true);
+                const lines = parseCSV(csvText);
+                if(lines.length < 2) return showToast('CSV must have a header row',true);
+                const headers = lines[0].map(h => h.toLowerCase().trim());
+                if(!['name','email','role','company'].every(r => headers.includes(r))) {
+                    return showToast('CSV must have columns: Name, Email, Role, Company', true);
+                }
                 let created=0, failed=0, failedList=[];
                 resultEl.innerHTML = `<span style="color:#38bdf8;">Importing... (${lines.length-1} records)</span>`;
                 for(let i=1;i<lines.length;i++){
-                    const vals = lines[i].split(',').map(v=>v.trim());
-                    if(vals.length<4) continue;
+                    const vals = lines[i];
+                    if(vals.length < headers.length) continue;
                     const rec = {};
-                    headers.forEach((h,idx)=>rec[h]=vals[idx]||'');
+                    headers.forEach((h,idx) => rec[h] = vals[idx] || '');
                     const pass = rec.password||'password123';
                     try {
                         await createUser(rec.email,pass,rec.name,rec.company,rec.role);
@@ -1679,7 +1783,6 @@
                 saveSettings(); showToast('Deductions saved');
             };
 
-            // FIX: Real export for all system data
             window.exportSystemData = async () => {
                 try {
                     const ratings = await db.collection('ratings').get();
@@ -1718,17 +1821,8 @@
             // ── INIT ──
             function setStatus(msg) { const el=document.getElementById('loadingStatus'); if(el) el.innerText=msg; }
 
-            const loadingTimeout = setTimeout(() => {
-                const app=document.getElementById('app');
-                if(app&&(app.innerHTML.includes('loadingSpinner')||app.innerHTML.includes('Initializing'))) {
-                    setStatus('Timed out. Showing login...');
-                    setTimeout(renderLogin,1000);
-                }
-            }, 12000);
-
             setStatus('Waiting for Firebase Auth...');
             auth.onAuthStateChanged(async (user) => {
-                clearTimeout(loadingTimeout);
                 try {
                     if(user) {
                         setStatus('User found, loading profile...');
