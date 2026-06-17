@@ -82,7 +82,16 @@
         .score-excellent { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
         .score-good      { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
         .score-poor      { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
-        .rating-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(0,150,255,0.3); background: rgba(255,255,255,0.04); color: #94a3b8; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+        /* ── UPDATED: wider rating buttons to fit Filipino labels ── */
+        .rating-btn {
+            min-width: 56px; height: 40px; border-radius: 10px;
+            border: 1px solid rgba(0,150,255,0.3);
+            background: rgba(255,255,255,0.04); color: #94a3b8;
+            font-weight: 600; font-size: 11px; cursor: pointer;
+            transition: all 0.15s; display: inline-flex;
+            align-items: center; justify-content: center;
+            padding: 0 8px; white-space: nowrap;
+        }
         .rating-btn:hover { border-color: #00bfff; color: #00bfff; background: rgba(0,191,255,0.1); }
         .rating-btn.selected { background: linear-gradient(135deg,#0060cc,#00bfff) !important; color: #fff !important; border-color: transparent !important; box-shadow: 0 0 12px rgba(0,191,255,0.4); }
         .anon-badge { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #34d399; padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
@@ -123,7 +132,6 @@
         .question-item.dragging { opacity: 0.45; }
         .drag-handle { cursor: grab; color: #334155; }
         .drag-handle:active { cursor: grabbing; }
-        /* paragraph question badge */
         .q-type-badge-paragraph { background: rgba(168,85,247,0.18); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
         .q-type-badge-rating { background: rgba(0,191,255,0.15); color: #38bdf8; border: 1px solid rgba(0,191,255,0.25); border-radius: 6px; padding: 2px 8px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
         .paragraph-answer-box { width: 100%; padding: 12px 14px; border-radius: 10px; font-size: 14px; resize: vertical; min-height: 90px; line-height: 1.6; }
@@ -223,14 +231,21 @@
             let unreadNotificationCount = 0;
             let notifications = [];
 
-            // ── Default question objects: each has { text, type } where type = 'rating' | 'paragraph'
+            // ── RATING SCALE (Filipino) ──
+            const RATING_LABELS = {
+                1: 'Hindi kailanman',
+                2: 'Minsan',
+                3: 'Kadalasan',
+                4: 'Madalas',
+                5: 'Palagi'
+            };
+            const RATING_SCALE_LEGEND = Object.entries(RATING_LABELS).map(([k,v])=>`${k}=${v}`).join(' · ');
+
             const appSettings = {
                 companies: ['Nuebe', '1118', 'Kargo'],
                 operationWeight: 0.7,
                 hrWeight: 0.3,
                 deductions: { late: 2, npsl: 2, npl: 2, awol: 10, warningA: 5, warningB: 10, warningC: 20 },
-                // Questions are stored as objects: { text: string, type: 'rating' | 'paragraph' }
-                // Legacy plain-string arrays are auto-migrated on load.
                 employeeQuestions: [
                     { text: "1. Able to Work Independently", type: "rating" },
                     { text: "2. Apply acquired knowledge and skills efficiently", type: "rating" },
@@ -272,7 +287,6 @@
                 ]
             };
 
-            // Migrate legacy plain-string arrays to objects
             function migrateQuestions(arr) {
                 if (!Array.isArray(arr)) return arr;
                 return arr.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q);
@@ -314,20 +328,15 @@
                     const d = await db.collection('settings').doc('appConfig').get();
                     if(d.exists) {
                         const data = d.data();
-                        // Merge loaded data
                         if(data.companies) appSettings.companies = data.companies;
                         if(data.operationWeight !== undefined) appSettings.operationWeight = data.operationWeight;
                         if(data.hrWeight !== undefined) appSettings.hrWeight = data.hrWeight;
                         if(data.deductions) appSettings.deductions = data.deductions;
-
-                        // Handle employeeQuestions — support both legacy string arrays and new object arrays
                         if(data.employeeQuestions) {
                             appSettings.employeeQuestions = migrateQuestions(data.employeeQuestions);
                         } else if(data.questions) {
-                            // oldest legacy field
                             appSettings.employeeQuestions = migrateQuestions(data.questions);
                         }
-
                         if(data.managerQuestions) {
                             appSettings.managerQuestions = migrateQuestions(data.managerQuestions);
                         }
@@ -519,8 +528,8 @@
                 const allU = await db.collection('users').get();
                 const allR = await db.collection('ratings').get();
                 const scores = {};
-                allR.docs.forEach(r=>{ const d=r.data(); if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; });
-                const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
+                allR.docs.forEach(r=>{ const d=r.data(); if(d.average !== undefined && !scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; if(d.average !== undefined){ scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; } });
+                const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc&&sc.count?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
                 let filtered = users;
                 if(userDirCompanyFilter!=='all') filtered = users.filter(u=>u.company===userDirCompanyFilter);
                 if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company);
@@ -711,7 +720,6 @@
                 const peer = {};
                 filtR.forEach(r=>{
                     const d=r.data();
-                    // Only count rating-type scores (average field)
                     if(d.average !== undefined) {
                         if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0};
                         peer[d.revieweeId].total+=d.average;
@@ -796,7 +804,55 @@
                     </div>
                 </div>`;
             };
-            window.exportResultsToCSV = () => { showToast('CSV export ready (simulated)'); };
+
+            // ── FIX: Real CSV export ──
+            window.exportResultsToCSV = async () => {
+                try {
+                    const allU = await db.collection('users').get();
+                    const allR = await db.collection('ratings').get();
+                    const hrRec = await db.collection('hrRecords').get();
+                    const selQ = window._reportQuarterFilter || 'all';
+                    const cf   = window._reportCompanyFilter || 'all';
+                    const rf   = window._reportRoleFilter    || 'all';
+                    const sf   = (window._reportSearch || '').toLowerCase();
+
+                    let filtR = allR.docs;
+                    if(selQ!=='all') filtR = filtR.filter(d=>d.data().quarter===selQ);
+                    const hrMap = {}; hrRec.docs.forEach(d=>{ hrMap[d.id]=d.data(); });
+                    const peer = {};
+                    filtR.forEach(r=>{ const d=r.data(); if(d.average !== undefined){ if(!peer[d.revieweeId]) peer[d.revieweeId]={total:0,count:0}; peer[d.revieweeId].total+=d.average; peer[d.revieweeId].count++; } });
+
+                    const results = [];
+                    for(const u of allU.docs) {
+                        const user=u.data();
+                        if(user.role==='admin') continue;
+                        const p=peer[u.id];
+                        if(!p||p.count===0) continue;
+                        const rawOp=(p.total/p.count)*20;
+                        const op=Math.min(100,rawOp);
+                        const hr=hrMap[u.id];
+                        let hrScore=null;
+                        if(hr){ const ded=(hr.late||0)*appSettings.deductions.late+(hr.npsl||0)*appSettings.deductions.npsl+(hr.npl||0)*appSettings.deductions.npl+(hr.awol||0)*appSettings.deductions.awol+(hr.warningA||0)*appSettings.deductions.warningA+(hr.warningB||0)*appSettings.deductions.warningB+(hr.warningC||0)*appSettings.deductions.warningC; hrScore=Math.max(0,100-ded); }
+                        const fin=hrScore!==null?(op*appSettings.operationWeight)+(hrScore*appSettings.hrWeight):op;
+                        results.push({name:user.name,company:user.company,role:user.role,op:op.toFixed(1),hr:hrScore!==null?hrScore:'N/A',fin:fin.toFixed(1),count:p.count});
+                    }
+                    let filtered=results;
+                    if(cf!=='all') filtered=filtered.filter(r=>r.company===cf);
+                    if(rf!=='all') filtered=filtered.filter(r=>r.role===rf);
+                    if(sf) filtered=filtered.filter(r=>r.name.toLowerCase().includes(sf));
+                    filtered.sort((a,b)=>parseFloat(b.fin)-parseFloat(a.fin));
+
+                    const header = ['Name','Company','Role','Peer Rating (/100)','HR Score (/100)','Final Score (/100)','Review Count'];
+                    const rows = filtered.map(r=>[`"${r.name}"`,`"${r.company}"`,`"${r.role}"`,r.op,r.hr,r.fin,r.count]);
+                    const csv = [header,...rows].map(r=>r.join(',')).join('\n');
+                    const blob = new Blob([csv],{type:'text/csv'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href=url; a.download=`appraisal_results_${selQ}.csv`; a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('CSV exported ✅');
+                } catch(e) { showToast('Export failed: ' + e.message, true); }
+            };
 
             // ── USER DETAILS ──
             window.viewUserDetails = async (userId) => {
@@ -805,7 +861,6 @@
                 const u = uDoc.data();
                 const ratings = await db.collection('ratings').where('revieweeId','==',userId).get();
                 const reviews = ratings.docs.map(d=>({id:d.id,...d.data()}));
-                // Only include reviews that have a numeric average for the chart/avg
                 const ratingReviews = reviews.filter(r => r.average !== undefined && r.average !== null);
                 const avg = ratingReviews.length?(ratingReviews.reduce((a,b)=>a+b.average,0)/ratingReviews.length).toFixed(1):'N/A';
                 const last4 = getLastNQuarters(4);
@@ -843,7 +898,6 @@
                         </div>
                         <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback</h2>
                         ${reviews.length ? reviews.map((r,i)=>{
-                            // Render each review card
                             const hasAvg = r.average !== undefined && r.average !== null;
                             return `
                             <div class="feedback-card">
@@ -868,7 +922,7 @@
                                                     <p style="color:#94a3b8;font-size:12px;margin:0 0 6px;font-weight:600;">${s.question}</p>
                                                     <p style="color:#e2e8f0;margin:0;font-size:13px;line-height:1.6;">${s.answer || '<em style="color:#475569">No answer provided</em>'}</p>
                                                   </div>`
-                                                : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;font-size:12px;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5</span></div>`
+                                                : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;font-size:12px;">${s.question}</span><span style="font-weight:700;color:#38bdf8;">${s.score}/5 — ${RATING_LABELS[s.score]||''}</span></div>`
                                             ).join('')
                                             : Object.entries(r.scores).map(([q,s])=>`<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid rgba(0,150,255,0.12);border-radius:8px;padding:8px 12px;"><span style="color:#64748b;">${q}</span><span style="font-weight:700;color:#38bdf8;">${s}/5</span></div>`).join('')
                                         }
@@ -920,7 +974,6 @@
                 const allR = await db.collection('ratings').get();
                 let feedbacks = allR.docs.map(d=>d.data());
                 if(dashboardCompanyFilter!=='all') feedbacks = feedbacks.filter(f=>f.company===dashboardCompanyFilter);
-                // Only count numeric-rated feedbacks for avgScore
                 const ratedFeedbacks = feedbacks.filter(f=>f.average !== undefined);
                 const avgScore = ratedFeedbacks.length?(ratedFeedbacks.reduce((a,b)=>a+(b.average||0),0)/ratedFeedbacks.length).toFixed(1):0;
                 const low = ratedFeedbacks.filter(r=>r.average<3);
@@ -934,7 +987,7 @@
                 <div style="min-height:100vh;">
                     ${renderNavbar('home')}
                     <div style="max-width:1200px;margin:0 auto;padding:24px 16px;">
-                        ${low.length?`<div style="background:rgba(239,68,68,0.08);border-left:4px solid #ef4444;padding:14px 18px;margin-bottom:16px;border-radius:10px;color:#fca5a5;font-size:14px;"><i class="fas fa-exclamation-triangle" style="margin-right:8px;color:#ef4444;"></i>Low Rating Alert: ${low.length} rating${low.length>1?'s':''} below 3.0</div>`:''}
+                        ${low.length?`<div style="background:rgba(239,68,68,0.08);border-left:4px solid #ef4444;padding:14px 18px;margin-bottom:16px;border-radius:10px;color:#fca5a5;font-size:14px;"><i class="fas fa-exclamation-triangle" style="margin-right:8px;color:#ef4444;"></i>Low Rating Alert: ${low.length} rating${low.length>1?'s':''} below 3.0 (Kadalasan)</div>`:''}
                         <div style="background:rgba(0,100,255,0.08);border:1px solid rgba(0,150,255,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-size:13px;color:#93c5fd;">
                             <i class="fas fa-user-secret" style="color:#00bfff;font-size:16px;"></i>
                             <span><strong>All evaluations are 100% anonymous.</strong> Rater identities are never revealed to the person being evaluated.</span>
@@ -994,7 +1047,6 @@
             window.startEvaluation = async (rid, rname, rrole) => {
                 if(rid===currentUser.uid) return showToast('Cannot self-evaluate',true);
                 let questionSet = (rrole==='manager'||rrole==='hr') ? appSettings.managerQuestions : appSettings.employeeQuestions;
-                // Ensure objects
                 questionSet = migrateQuestions(questionSet);
 
                 let qHtml = '';
@@ -1006,22 +1058,33 @@
                                 <span style="font-weight:600;font-size:14px;color:#cbd5e1;flex:1;">${q.text}</span>
                                 <span class="q-type-badge-paragraph"><i class="fas fa-paragraph"></i> Open-ended</span>
                             </div>
-                            <textarea id="q${i}" class="paragraph-answer-box" placeholder="Write your answer here…" rows="3"></textarea>
+                            <textarea id="q${i}" class="paragraph-answer-box" placeholder="Isulat ang iyong sagot dito…" rows="3"></textarea>
                         </div>`;
                     } else {
+                        // ── UPDATED: Filipino rating scale buttons ──
+                        const ratingBtnsHtml = [1,2,3,4,5].map(s=>`
+                            <button type="button" class="rating-btn" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">
+                                <span style="font-weight:700;font-size:13px;margin-right:3px;">${s}</span>
+                                <span style="font-size:10px;opacity:0.8;">${RATING_LABELS[s]}</span>
+                            </button>`).join('');
                         qHtml += `<div style="margin-bottom:16px;padding:16px;border:1px solid rgba(0,150,255,0.15);border-radius:12px;background:rgba(255,255,255,0.02);">
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
                                 <span style="font-weight:600;font-size:14px;color:#cbd5e1;flex:1;">${q.text}</span>
                                 <span class="q-type-badge-rating"><i class="fas fa-star"></i> Rating</span>
                             </div>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                                ${[1,2,3,4,5].map(s=>`<button type="button" class="rating-btn" data-q="${i}" data-score="${s}" onclick="selectRating(${i},${s})">${s}</button>`).join('')}
-                                <span style="font-size:11px;color:#334155;margin-left:6px;">1=Poor · 5=Excellent</span>
+                                ${ratingBtnsHtml}
                             </div>
                             <input type="hidden" id="q${i}" value="">
                         </div>`;
                     }
                 });
+
+                // ── Rating scale legend ──
+                const legendHtml = `<div style="background:rgba(0,120,255,0.06);border:1px solid rgba(0,150,255,0.18);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#7dd3fc;">
+                    <strong>Sukat ng Pagtatasa:</strong>&nbsp;
+                    ${Object.entries(RATING_LABELS).map(([k,v])=>`<span style="margin-right:14px;"><strong style="color:#00bfff;">${k}</strong> = ${v}</span>`).join('')}
+                </div>`;
 
                 document.getElementById('app').innerHTML = `
                 <div style="min-height:100vh;padding:24px 16px;">
@@ -1031,12 +1094,13 @@
                             <span class="anon-badge"><i class="fas fa-user-secret"></i> Anonymous</span>
                         </div>
                         <p style="font-size:13px;color:#64748b;margin-bottom:8px;">Quarter: <strong style="color:#7dd3fc;">${selectedQuarter}</strong> · Role: <strong style="color:#7dd3fc;">${rrole}</strong></p>
-                        <div style="background:rgba(0,120,255,0.08);border:1px solid rgba(0,150,255,0.2);border-radius:10px;padding:10px 14px;margin-bottom:20px;font-size:13px;color:#93c5fd;">
+                        <div style="background:rgba(0,120,255,0.08);border:1px solid rgba(0,150,255,0.2);border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:#93c5fd;">
                             <i class="fas fa-lock" style="margin-right:6px;"></i>Your identity will <strong>never</strong> be revealed to the person you are rating.
                         </div>
+                        ${legendHtml}
                         <form id="evalForm">
                             ${qHtml}
-                            <textarea id="comments" rows="3" placeholder="Additional comments (optional — also anonymous)" style="width:100%;padding:12px 14px;border-radius:10px;margin-top:8px;font-size:14px;resize:vertical;"></textarea>
+                            <textarea id="comments" rows="3" placeholder="Karagdagang komento (opsyonal — anonymous din ito)" style="width:100%;padding:12px 14px;border-radius:10px;margin-top:8px;font-size:14px;resize:vertical;"></textarea>
                             <div style="display:flex;gap:12px;margin-top:20px;">
                                 <button type="submit" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:24px;padding:11px 24px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 0 16px rgba(16,185,129,0.3);">
                                     <i class="fas fa-check" style="margin-right:8px;"></i>Submit Anonymously
@@ -1085,7 +1149,6 @@
                         comments: document.getElementById('comments').value||'',
                         createdAt: new Date().toISOString()
                     };
-                    // Only add average/total if there were rating questions
                     if(avg !== null) {
                         payload.total = ratingTotal;
                         payload.average = avg;
@@ -1122,6 +1185,7 @@
                             <div style="text-align:center;padding:24px;">
                                 <div style="font-size:64px;font-weight:700;color:#00bfff;filter:drop-shadow(0 0 18px rgba(0,191,255,0.4));">${avg}</div>
                                 <div style="color:#64748b;margin-top:8px;font-size:14px;">Average score from ${ratingReviews.length} anonymous reviewer${ratingReviews.length!==1?'s':''}</div>
+                                <div style="margin-top:12px;font-size:12px;color:#334155;">${RATING_SCALE_LEGEND}</div>
                             </div>` : `<div style="text-align:center;padding:24px;color:#475569;font-size:14px;">No rated feedback yet.</div>`}
                             ${reviews.filter(r=>r.comments).length?`
                             <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
@@ -1132,11 +1196,11 @@
                                     <p style="font-size:12px;color:#334155;margin:0;">${r.quarter||''} ${r.average !== undefined ? '· Score: '+r.average+'/5' : '· Open-ended'}</p>
                                 </div>`).join('')}
                             </div>`:''}
-                            ${reviews.some(r=>r.scores && r.scores.some(s=>s.type==='paragraph')) ? `
+                            ${reviews.some(r=>r.scores && Array.isArray(r.scores) && r.scores.some(s=>s.type==='paragraph')) ? `
                             <div style="margin-top:20px;border-top:1px solid rgba(0,150,255,0.15);padding-top:20px;">
                                 <h3 style="font-weight:700;color:#7dd3fc;margin-bottom:14px;">Open-ended Responses:</h3>
                                 ${reviews.map(r=>{
-                                    if(!r.scores) return '';
+                                    if(!r.scores || !Array.isArray(r.scores)) return '';
                                     const paraAnswers = r.scores.filter(s=>s.type==='paragraph');
                                     if(!paraAnswers.length) return '';
                                     return paraAnswers.map(s=>`
@@ -1178,7 +1242,7 @@
                                         <span style="color:#334155;margin:0 8px;">→</span>
                                         <span style="font-weight:700;color:#e2e8f0;">${f.revieweeName}</span>
                                     </div>
-                                    ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
+                                    ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5 — ${RATING_LABELS[Math.round(f.average)]||''}</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
                                 </div>
                                 <p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 4px;">"${f.comments||'No comments'}"</p>
                                 <div style="font-size:11px;color:#334155;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
@@ -1291,22 +1355,22 @@
             };
 
             // ── QUESTION MANAGER ──
-            // Renders the question list for the manager UI
             function renderQuestionListHTML(type) {
                 const questions = migrateQuestions(type==='employee' ? appSettings.employeeQuestions : appSettings.managerQuestions);
                 if(!questions.length) return '<p style="color:#475569;font-size:13px;padding:10px;">No questions yet. Click Add to create one.</p>';
                 return questions.map((q,idx)=>{
                     const isParagraph = q.type === 'paragraph';
+                    // FIX: use data-qtype attribute instead of reading innerText for type detection
                     return `
                     <div class="question-item" draggable="true" data-index="${idx}" data-type="${type}" style="display:flex;align-items:center;gap:10px;">
                         <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
                         <input type="text" value="${q.text.replace(/"/g,'&quot;')}" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
-                        <button type="button" title="Toggle question type"
+                        <button type="button" title="Toggle question type" data-qtype="${isParagraph?'paragraph':'rating'}"
                             onclick="toggleQuestionType('${type}',${idx})"
                             style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
                             <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
                         </button>
-                        <button type="button" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                        <button type="button" class="delete-q-btn" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>
                     </div>`;
                 }).join('');
             }
@@ -1375,16 +1439,17 @@
                 document.getElementById('tabManager').style.cssText = `padding:9px 18px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);font-size:13px;cursor:pointer;font-weight:600;background:${type==='manager'?'linear-gradient(135deg,#0055b3,#00bfff)':'rgba(255,255,255,0.07)'};color:${type==='manager'?'#fff':'#94a3b8'};`;
             };
 
-            // Toggle rating ↔ paragraph for an existing question item in the DOM
+            // FIX: Use data-qtype attribute — reliable, not affected by icon text bleeding into innerText
             window.toggleQuestionType = (type, idx) => {
                 const container = document.getElementById(type==='employee'?'employeeQuestionsList':'managerQuestionsList');
                 if(!container) return;
                 const item = container.querySelector(`.question-item[data-index="${idx}"]`);
                 if(!item) return;
                 const btn = item.querySelector('button[title="Toggle question type"]');
-                const isParagraph = btn.innerText.trim().startsWith('Paragraph');
-                const newType = isParagraph ? 'rating' : 'paragraph';
-                // Update button appearance
+                if(!btn) return;
+                const currentType = btn.dataset.qtype;
+                const newType = currentType === 'paragraph' ? 'rating' : 'paragraph';
+                btn.dataset.qtype = newType;
                 btn.innerHTML = `<i class="fas fa-${newType==='paragraph'?'paragraph':'star'}" style="margin-right:4px;"></i>${newType==='paragraph'?'Paragraph':'Rating'}`;
                 btn.style.background = newType==='paragraph' ? 'rgba(168,85,247,0.2)' : 'rgba(0,191,255,0.15)';
                 btn.style.color = newType==='paragraph' ? '#d8b4fe' : '#38bdf8';
@@ -1404,12 +1469,12 @@
                 newItem.innerHTML=`
                     <span class="drag-handle" style="padding:0 6px;cursor:grab;"><i class="fas fa-grip-vertical" style="color:#334155;"></i></span>
                     <input type="text" value="New ${isParagraph?'Paragraph':'Rating'} Question" style="flex:1;padding:8px 12px;font-size:13px;" data-qindex="${idx}" data-type="${type}">
-                    <button type="button" title="Toggle question type"
+                    <button type="button" title="Toggle question type" data-qtype="${qtype}"
                         onclick="toggleQuestionType('${type}',${idx})"
                         style="white-space:nowrap;padding:5px 10px;border-radius:8px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${isParagraph?'rgba(168,85,247,0.2)':'rgba(0,191,255,0.15)'};color:${isParagraph?'#d8b4fe':'#38bdf8'};">
                         <i class="fas fa-${isParagraph?'paragraph':'star'}" style="margin-right:4px;"></i>${isParagraph?'Paragraph':'Rating'}
                     </button>
-                    <button type="button" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
+                    <button type="button" class="delete-q-btn" onclick="deleteQuestion('${type}',${idx})" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:6px 10px;cursor:pointer;"><i class="fas fa-trash"></i></button>`;
                 container.appendChild(newItem);
                 setupDragListeners(newItem);
                 reindexQuestions(type);
@@ -1424,10 +1489,10 @@
                     item.dataset.index=newIdx;
                     const input=item.querySelector('input');
                     if(input) input.dataset.qindex=newIdx;
-                    // Update onclick for toggle and delete buttons
+                    // FIX: use specific class selectors to avoid ambiguity
                     const toggleBtn=item.querySelector('button[title="Toggle question type"]');
                     if(toggleBtn) toggleBtn.setAttribute('onclick',`toggleQuestionType('${type}',${newIdx})`);
-                    const deleteBtn=item.querySelector('button:not([title])');
+                    const deleteBtn=item.querySelector('.delete-q-btn');
                     if(deleteBtn) deleteBtn.setAttribute('onclick',`deleteQuestion('${type}',${newIdx})`);
                 });
             }
@@ -1475,9 +1540,9 @@
                         const input = item.querySelector('input');
                         const toggleBtn = item.querySelector('button[title="Toggle question type"]');
                         const text = input ? input.value.trim() : '';
-                        // Determine type from button label text
-                        const isParagraph = toggleBtn && toggleBtn.innerText.trim().startsWith('Paragraph');
-                        return { text, type: isParagraph ? 'paragraph' : 'rating' };
+                        // FIX: read from data-qtype attribute, not innerText
+                        const qtype = toggleBtn ? toggleBtn.dataset.qtype : 'rating';
+                        return { text, type: qtype };
                     }).filter(q => q.text.length > 0);
                     if(type==='employee') appSettings.employeeQuestions = questions;
                     else appSettings.managerQuestions = questions;
@@ -1613,7 +1678,28 @@
                 };
                 saveSettings(); showToast('Deductions saved');
             };
-            window.exportSystemData = () => { showToast('Export ready (simulated)'); };
+
+            // FIX: Real export for all system data
+            window.exportSystemData = async () => {
+                try {
+                    const ratings = await db.collection('ratings').get();
+                    const users = await db.collection('users').get();
+                    const hrRecs = await db.collection('hrRecords').get();
+                    const data = {
+                        exportDate: new Date().toISOString(),
+                        users: users.docs.map(d=>({id:d.id,...d.data()})),
+                        ratings: ratings.docs.map(d=>({id:d.id,...d.data()})),
+                        hrRecords: hrRecs.docs.map(d=>({id:d.id,...d.data()}))
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href=url; a.download=`appraisal_system_export_${new Date().toISOString().split('T')[0]}.json`; a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('Export complete ✅');
+                } catch(e) { showToast('Export failed: ' + e.message, true); }
+            };
+
             window.resetSystemData = async () => {
                 if(!confirm('⚠️ This will delete ALL ratings and HR records. User accounts will NOT be deleted. Continue?')) return;
                 showLoading();
