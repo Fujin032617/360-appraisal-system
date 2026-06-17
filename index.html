@@ -186,7 +186,6 @@
 </head>
 <body>
     <div id="app">
-        <!-- FIX: Safe initial loading screen that does NOT call renderNavbar (currentUserData is null here) -->
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;">
             <div class="loading-spinner"></div>
             <p id="loadingStatus" style="color:#7dd3fc;margin-top:12px;font-size:14px;">Initializing...</p>
@@ -284,7 +283,13 @@
                 return arr.map(q => typeof q === 'string' ? { text: q, type: 'rating' } : q);
             }
 
+            // HR and Admin can see rater identity AND see all companies
             function canSeeRaterIdentity() {
+                return currentUserData && (currentUserData.role === 'hr' || currentUserData.role === 'admin');
+            }
+
+            // HR sees ALL companies (single HR for all companies)
+            function isHrOrAdmin() {
                 return currentUserData && (currentUserData.role === 'hr' || currentUserData.role === 'admin');
             }
 
@@ -308,7 +313,6 @@
                 setTimeout(()=>t.remove(),3000);
             }
 
-            // FIX: showLoading now safely renders without calling renderNavbar when user isn't logged in
             function showLoading(id='app') {
                 const container = document.getElementById(id);
                 if (!container) return;
@@ -365,7 +369,6 @@
                     notifications = notifications.slice(0,20);
                 }
                 unreadNotificationCount = notifications.filter(n=>!n.read).length;
-                // FIX: always update the badge after fetching
                 updateBadge();
             }
             async function createNotification(uid, msg, type='info', link='#') {
@@ -441,6 +444,7 @@
                 </nav>`;
             }
 
+            // ── FIX: expose confirmLogout and logout to global scope ──
             function confirmLogout() {
                 const modal = document.createElement('div');
                 modal.className = 'modal';
@@ -456,6 +460,18 @@
                 </div>`;
                 document.getElementById('app').appendChild(modal);
             }
+            window.confirmLogout = confirmLogout;
+
+            function logout() {
+                auth.signOut();
+                currentUser=null; currentUserData=null;
+                window._reportQuarterFilter = 'all';
+                window._reportCompanyFilter = 'all';
+                window._reportRoleFilter = 'all';
+                window._reportSearch = '';
+                renderLogin();
+            }
+            window.logout = logout;
 
             // ── AUTH ──
             async function createUser(email, password, name, company, role) {
@@ -498,15 +514,6 @@
                     } else { await auth.signOut(); showToast('Profile not found',true); }
                 } catch(e) { showToast(e.message,true); }
             }
-            function logout() {
-                auth.signOut();
-                currentUser=null; currentUserData=null;
-                window._reportQuarterFilter = 'all';
-                window._reportCompanyFilter = 'all';
-                window._reportRoleFilter = 'all';
-                window._reportSearch = '';
-                renderLogin();
-            }
 
             function renderLogin() {
                 document.getElementById('app').innerHTML = `
@@ -530,6 +537,7 @@
             }
 
             // ── USER DIRECTORY ──
+            // HR sees all companies; manager sees only their own company
             async function renderUserDirectory() {
                 try {
                     showLoading(); await fetchNotifications();
@@ -538,9 +546,15 @@
                     const scores = {};
                     allR.docs.forEach(r=>{ const d=r.data(); if(d.average !== undefined){ if(!scores[d.revieweeId]) scores[d.revieweeId]={total:0,count:0}; scores[d.revieweeId].total+=d.average; scores[d.revieweeId].count++; } });
                     const users = allU.docs.map(d=>{ const data=d.data(); const sc=scores[d.id]; return {id:d.id,...data,avgScore:sc&&sc.count?(sc.total/sc.count).toFixed(1):'N/A',reviewCount:sc?sc.count:0}; });
+
                     let filtered = users;
-                    if(userDirCompanyFilter!=='all') filtered = users.filter(u=>u.company===userDirCompanyFilter);
-                    if(currentUserData.role==='manager') filtered = filtered.filter(u=>u.company===currentUserData.company);
+                    // Manager: only their own company. HR/Admin: all companies (with optional filter)
+                    if(currentUserData.role==='manager') {
+                        filtered = filtered.filter(u=>u.company===currentUserData.company);
+                    } else if(isHrOrAdmin()) {
+                        if(userDirCompanyFilter!=='all') filtered = filtered.filter(u=>u.company===userDirCompanyFilter);
+                    }
+
                     const canCreate = (currentUserData.role==='admin'||currentUserData.role==='hr');
                     const canEdit = (currentUserData.role==='admin'||currentUserData.role==='hr');
                     const roleBorderColor = {admin:'#a855f7',hr:'#22c55e',manager:'#00bfff',employee:'#334155'};
@@ -552,7 +566,7 @@
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
                                 <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-users" style="color:#00bfff;margin-right:10px;"></i>User Directory</h1>
                                 <div style="display:flex;gap:10px;">
-                                    ${(currentUserData.role==='admin'||currentUserData.role==='hr')?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${userDirCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>`:''}
+                                    ${isHrOrAdmin()?`<select id="companyFilterUsers" style="padding:8px 12px;font-size:13px;" onchange="applyUserCompanyFilter(this.value)"><option value="all">All Companies</option>${appSettings.companies.map(c=>`<option value="${c}" ${userDirCompanyFilter===c?'selected':''}>${c}</option>`).join('')}</select>`:''}
                                     ${canCreate?`<button onclick="showCreateUserModal()" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 0 14px rgba(16,185,129,0.25);"><i class="fas fa-plus" style="margin-right:6px;"></i>Add User</button>`:''}
                                 </div>
                             </div>
@@ -873,6 +887,7 @@
             };
 
             // ── USER DETAILS ──
+            // HR/Admin can see rater names and ALL answers across ALL companies
             window.viewUserDetails = async (userId) => {
                 try {
                     showLoading(); await fetchNotifications();
@@ -895,7 +910,10 @@
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
                                 <div>
                                     <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 8px;">${u.name}</h1>
-                                    ${!isHrAdmin?`<span class="anon-badge"><i class="fas fa-user-secret" style="margin-right:4px;"></i>All feedback is anonymous</span>`:'<span style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater names visible</span>'}
+                                    ${!isHrAdmin
+                                        ? `<span class="anon-badge"><i class="fas fa-user-secret" style="margin-right:4px;"></i>All feedback is anonymous</span>`
+                                        : `<span style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater names &amp; all answers visible</span>`
+                                    }
                                 </div>
                                 <div style="display:flex;gap:10px;">
                                     <button onclick="exportUserPDF('${userId}')" style="background:linear-gradient(135deg,#059669,#34d399);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;"><i class="fas fa-download" style="margin-right:6px;"></i>PDF</button>
@@ -915,15 +933,16 @@
                                 <h3 style="color:#7dd3fc;font-weight:700;margin-bottom:16px;">📈 Trend (Last 4 Quarters)</h3>
                                 <canvas id="trendChart" width="400" height="180"></canvas>
                             </div>
-                            <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback</h2>
+                            <h2 style="font-size:18px;font-weight:700;color:#e2e8f0;margin-bottom:14px;">Feedback (${reviews.length} total)</h2>
                             ${reviews.length ? reviews.map((r,i)=>{
                                 const hasAvg = r.average !== undefined && r.average !== null;
                                 return `
                                 <div class="feedback-card">
                                     <div style="background:linear-gradient(135deg,rgba(0,80,180,0.85),rgba(0,150,255,0.7));padding:14px 18px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleFeedback(${i})">
                                         <div>
-                                            <span style="font-weight:700;color:#fff;">${isHrAdmin ? r.raterName : 'Anonymous Reviewer'}</span>
+                                            <span style="font-weight:700;color:#fff;">${isHrAdmin ? (r.raterName || 'Unknown') : 'Anonymous Reviewer'}</span>
                                             <span style="font-size:12px;color:rgba(255,255,255,0.65);margin-left:8px;">${r.quarter||''}</span>
+                                            ${isHrAdmin && r.raterName ? `<span style="font-size:11px;color:rgba(255,255,255,0.5);margin-left:8px;">(${r.company||''})</span>` : ''}
                                         </div>
                                         <div style="display:flex;align-items:center;gap:14px;">
                                             ${hasAvg ? `<span style="background:rgba(255,255,255,0.2);color:#fff;padding:4px 14px;border-radius:20px;font-weight:700;font-size:13px;">⭐ ${r.average}/5</span>` : '<span style="background:rgba(168,85,247,0.3);color:#e9d5ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">📝 Open Feedback</span>'}
@@ -983,7 +1002,6 @@
 
             window.deleteFeedback = async (fid, uid) => { if(confirm('Delete this feedback?')) { await db.collection('ratings').doc(fid).delete(); showToast('Deleted'); viewUserDetails(uid); } };
 
-            // FIX: toggleFeedback chevron logic corrected — read state BEFORE toggling
             window.toggleFeedback = (i) => {
                 const c = document.getElementById(`feedbackContent${i}`);
                 const icon = document.getElementById(`chevron${i}`);
@@ -994,6 +1012,7 @@
             };
 
             // ── DASHBOARD ──
+            // HR sees ALL companies in pending evaluations; manager sees only their own
             async function renderDashboard() {
                 try {
                     showLoading(); await fetchNotifications();
@@ -1004,11 +1023,27 @@
                     const ratedFeedbacks = feedbacks.filter(f=>f.average !== undefined);
                     const avgScore = ratedFeedbacks.length?(ratedFeedbacks.reduce((a,b)=>a+(b.average||0),0)/ratedFeedbacks.length).toFixed(1):0;
                     const low = ratedFeedbacks.filter(r=>r.average<3);
-                    const companyUsers = allU.docs.filter(d=>d.data().company===currentUserData.company&&d.data().role!=='admin').map(d=>({id:d.id,...d.data()}));
+
+                    // HR/Admin: can evaluate anyone across all companies
+                    // Manager: only their own company
+                    // Employee: only their own company
+                    let evaluatableUsers;
+                    if(isHrOrAdmin()) {
+                        evaluatableUsers = allU.docs
+                            .filter(d=>d.data().role!=='admin' && d.id!==currentUser.uid)
+                            .map(d=>({id:d.id,...d.data()}));
+                        if(dashboardCompanyFilter!=='all') {
+                            evaluatableUsers = evaluatableUsers.filter(u=>u.company===dashboardCompanyFilter);
+                        }
+                    } else {
+                        evaluatableUsers = allU.docs
+                            .filter(d=>d.data().company===currentUserData.company && d.data().role!=='admin' && d.id!==currentUser.uid)
+                            .map(d=>({id:d.id,...d.data()}));
+                    }
 
                     const myRatingsSnap = await db.collection('ratings').where('raterId','==',currentUser.uid).where('quarter','==',selectedQuarter).get();
                     const completedThisQuarter = myRatingsSnap.docs.map(d=>d.data().revieweeId);
-                    const pending = companyUsers.filter(u=>u.id!==currentUser.uid&&!completedThisQuarter.includes(u.id));
+                    const pending = evaluatableUsers.filter(u=>!completedThisQuarter.includes(u.id));
 
                     document.getElementById('app').innerHTML = `
                     <div style="min-height:100vh;">
@@ -1253,11 +1288,12 @@
             }
             window.viewMyResults = viewMyResults;
 
-            // ── ALL FEEDBACK (HR / Admin) ──
+            // ── ALL FEEDBACK (HR / Admin) — shows ALL companies ──
             window.showAllFeedback = async () => {
                 try {
                     showLoading(); await fetchNotifications();
                     const ratings = await db.collection('ratings').get();
+                    // HR sees ALL feedback across ALL companies
                     const feedbacks = ratings.docs.map(d=>d.data());
                     document.getElementById('app').innerHTML = `
                     <div style="min-height:100vh;">
@@ -1265,24 +1301,38 @@
                         <div style="max-width:900px;margin:0 auto;padding:24px 16px;">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
                                 <div>
-                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 6px;">All Feedback</h1>
-                                    <p style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater identities visible here only</p>
+                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;margin:0 0 6px;">All Feedback <span style="font-size:14px;color:#475569;font-weight:400;">(${feedbacks.length} total across all companies)</span></h1>
+                                    <p style="font-size:12px;color:#c084fc;font-weight:600;"><i class="fas fa-eye" style="margin-right:4px;"></i>HR/Admin view — rater identities &amp; all answers visible here only</p>
                                 </div>
                                 <button onclick="renderDashboard()" style="background:rgba(255,255,255,0.07);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:9px 16px;font-size:13px;cursor:pointer;">Back</button>
                             </div>
                             <div style="background:rgba(13,22,45,0.72);backdrop-filter:blur(14px);border:1px solid rgba(0,150,255,0.2);border-radius:16px;padding:24px;">
                                 ${feedbacks.length ? feedbacks.map(f=>`
                                 <div style="border-bottom:1px solid rgba(255,255,255,0.05);padding:14px 0;margin-bottom:4px;">
-                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                                        <div>
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+                                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                                             <span style="font-weight:700;color:#c084fc;">${f.raterName}</span>
-                                            <span style="color:#334155;margin:0 8px;">→</span>
+                                            <span style="color:#334155;margin:0 4px;">→</span>
                                             <span style="font-weight:700;color:#e2e8f0;">${f.revieweeName}</span>
+                                            <span class="company-badge company-${f.company||''}">${f.company||'?'}</span>
                                         </div>
                                         ${f.average !== undefined ? `<span style="font-weight:700;color:#00bfff;">⭐ ${f.average}/5 — ${RATING_LABELS[Math.round(f.average)]||''}</span>` : '<span style="font-size:12px;color:#c084fc;">📝 Open-ended only</span>'}
                                     </div>
-                                    <p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 4px;">"${f.comments||'No comments'}"</p>
-                                    <div style="font-size:11px;color:#334155;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
+                                    ${f.comments ? `<p style="font-style:italic;color:#64748b;font-size:13px;margin:0 0 6px;">"${f.comments}"</p>` : ''}
+                                    ${f.scores && Array.isArray(f.scores) && f.scores.length ? `
+                                    <div style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;">
+                                        ${f.scores.map(s => s.type==='paragraph'
+                                            ? `<div style="grid-column:1/-1;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:8px 12px;">
+                                                <p style="color:#c084fc;font-size:11px;font-weight:600;margin:0 0 4px;">${s.question}</p>
+                                                <p style="color:#94a3b8;font-size:13px;margin:0;line-height:1.5;">${s.answer||'—'}</p>
+                                               </div>`
+                                            : `<div style="display:flex;justify-content:space-between;background:rgba(255,255,255,0.02);border:1px solid rgba(0,150,255,0.1);border-radius:6px;padding:6px 10px;font-size:12px;">
+                                                <span style="color:#64748b;">${s.question}</span>
+                                                <span style="font-weight:700;color:#38bdf8;">${s.score}/5</span>
+                                               </div>`
+                                        ).join('')}
+                                    </div>` : ''}
+                                    <div style="font-size:11px;color:#334155;margin-top:6px;">${f.quarter||'No quarter'} · ${new Date(f.createdAt).toLocaleDateString()}</div>
                                 </div>`).join('') : '<p style="text-align:center;color:#334155;padding:40px;font-size:14px;">No feedback yet</p>'}
                             </div>
                         </div>
@@ -1294,11 +1344,12 @@
                 }
             };
 
-            // ── HR INPUT PAGE ──
+            // ── HR INPUT PAGE — shows ALL companies ──
             window.showHrInputPage = async () => {
                 try {
                     showLoading(); await fetchNotifications();
                     const allU = await db.collection('users').get();
+                    // HR sees ALL employees across ALL companies; filter is just for convenience
                     let emps = allU.docs.filter(d=>d.data().role==='employee');
                     if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
                         emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
@@ -1314,7 +1365,10 @@
                         ${renderNavbar('hrinput')}
                         <div style="max-width:1400px;margin:0 auto;padding:24px 16px;">
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
-                                <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-user-clock" style="color:#34d399;margin-right:10px;"></i>HR Input</h1>
+                                <div>
+                                    <h1 style="font-size:22px;font-weight:700;color:#e2e8f0;"><i class="fas fa-user-clock" style="color:#34d399;margin-right:10px;"></i>HR Input</h1>
+                                    <p style="font-size:12px;color:#475569;margin-top:4px;">Showing all employees across all companies</p>
+                                </div>
                                 <div style="display:flex;gap:10px;">
                                     <select style="padding:8px 12px;font-size:13px;" onchange="window._hrCompanyFilter=this.value;window.showHrInputPage()">
                                         <option value="all" ${window._hrCompanyFilter==='all'?'selected':''}>All Companies</option>
@@ -1358,7 +1412,6 @@
                             </div>
                         </div>
                     </div>`;
-                    // FIX: attach listeners AND immediately compute initial score from existing data
                     emps.forEach(e=>{
                         ['late','npsl','npl','awol','warningA','warningB','warningC'].forEach(f=>{
                             const inp=document.getElementById(`${f}-${e.id}`);
@@ -1372,6 +1425,7 @@
                     document.getElementById('app').innerHTML = `${renderNavbar('hrinput')}<div style="text-align:center;padding:40px;color:#fca5a5;">Error loading HR input. <button onclick="showHrInputPage()" style="margin-top:12px;background:rgba(0,191,255,0.15);color:#00bfff;border:1px solid rgba(0,191,255,0.3);border-radius:8px;padding:8px 16px;cursor:pointer;">Retry</button></div>`;
                 }
             };
+
             function updateHrScoreDisplay(empId) {
                 const get = (f) => parseInt(document.getElementById(`${f}-${empId}`)?.value)||0;
                 const ded = get('late')*appSettings.deductions.late + get('npsl')*appSettings.deductions.npsl + get('npl')*appSettings.deductions.npl + get('awol')*appSettings.deductions.awol + get('warningA')*appSettings.deductions.warningA + get('warningB')*appSettings.deductions.warningB + get('warningC')*appSettings.deductions.warningC;
@@ -1382,8 +1436,10 @@
                     span.style.color = score>=85?'#34d399':score>=70?'#fbbf24':'#f87171';
                 }
             }
+
             window.saveAllHrData = async () => {
                 const allU = await db.collection('users').get();
+                // Save for ALL employees visible in the current filtered view
                 let emps = allU.docs.filter(d=>d.data().role==='employee');
                 if(window._hrCompanyFilter && window._hrCompanyFilter!=='all') {
                     emps = emps.filter(e=>e.data().company===window._hrCompanyFilter);
@@ -1404,7 +1460,6 @@
             };
 
             // ── QUESTION MANAGER ──
-            // FIX: renderQuestionListHTML uses DOM order (via index), not data-index for onclick attributes
             function renderQuestionListHTML(type) {
                 const questions = migrateQuestions(type==='employee' ? appSettings.employeeQuestions : appSettings.managerQuestions);
                 if(!questions.length) return '<p style="color:#475569;font-size:13px;padding:10px;">No questions yet. Click Add to create one.</p>';
@@ -1423,20 +1478,17 @@
                 }).join('');
             }
 
-            // FIX: Use event delegation for question buttons instead of inline onclick with stale index
             function attachQuestionListHandlers(type) {
                 const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
                 const container = document.getElementById(listId);
                 if(!container) return;
 
-                // Remove old listeners by replacing (cloneNode)
                 const newContainer = container.cloneNode(true);
                 container.parentNode.replaceChild(newContainer, container);
 
                 newContainer.addEventListener('click', function(e) {
                     const item = e.target.closest('.question-item');
                     if(!item) return;
-                    // Get live index from DOM position
                     const items = [...newContainer.querySelectorAll('.question-item')];
                     const liveIdx = items.indexOf(item);
 
@@ -1570,7 +1622,6 @@
                 });
             }
 
-            // FIX: setupDragAndDrop now accepts a type parameter and only sets up listeners for that list
             function setupDragAndDrop(type) {
                 const listId = type==='employee' ? 'employeeQuestionsList' : 'managerQuestionsList';
                 const container = document.getElementById(listId);
